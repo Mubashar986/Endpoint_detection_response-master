@@ -1,0 +1,638 @@
+{% extends "base.html" %}
+
+{% block title %}Alert {{ alert.alert_id }} - EDR SOC{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Custom Modal Styles */
+    .custom-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(5px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        animation: fadeIn 0.3s ease;
+    }
+    
+    .custom-modal-overlay.show {
+        display: flex;
+    }
+    
+    .custom-modal {
+        background: white;
+        border-radius: 20px;
+        padding: 30px;
+        max-width: 500px;
+        width: 90%;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        animation: slideUp 0.3s ease;
+        position: relative;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    @keyframes slideUp {
+        from { transform: translateY(50px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
+    
+    .modal-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 20px;
+        font-size: 28px;
+    }
+    
+    .modal-icon.success { background: linear-gradient(135deg, #51cf66, #37b24d); color: white; }
+    .modal-icon.warning { background: linear-gradient(135deg, #ffd93d, #ffb400); color: white; }
+    .modal-icon.danger { background: linear-gradient(135deg, #ff6b6b, #ee5a6f); color: white; }
+    .modal-icon.info { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+    
+    /* Gradient Headers */
+    .gradient-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 20px 20px 0 0;
+    }
+    
+    .gradient-success {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    }
+    
+    .gradient-danger {
+        background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    }
+    
+    /* Info Cards */
+    .info-card {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        border-radius: 15px;
+        padding: 25px;
+        border: none;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    }
+    
+    .info-card h5 {
+        color: #667eea;
+        margin-bottom: 20px;
+        font-weight: 600;
+    }
+    
+    /* Evidence Box */
+    .evidence-box {
+        background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+        border-left: 5px solid #d63031;
+        border-radius: 15px;
+        padding: 25px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    
+    .evidence-item {
+        background: white;
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    
+    /* Timeline */
+    .timeline-box {
+        background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 25px;
+    }
+    
+    .timeline-item {
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(255,255,255,0.2);
+    }
+    
+    .timeline-item:last-child {
+        border-bottom: none;
+    }
+    
+    /* Action Buttons */
+    .action-btn-modern {
+        border-radius: 30px;
+        padding: 15px 30px;
+        font-weight: 600;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        transition: all 0.3s ease;
+        border: none;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    
+    .action-btn-modern:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+    }
+    
+    .btn-resolve {
+        background: linear-gradient(135deg, #11998e, #38ef7d);
+        color: white;
+    }
+    
+    .btn-false-positive {
+        background: linear-gradient(135deg, #ffd93d, #ffb400);
+        color: #2d3436;
+    }
+    
+    .btn-assign {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+    }
+    
+    /* Notes Section */
+    .note-card {
+        background: white;
+        border-left: 4px solid #667eea;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        transition: all 0.3s ease;
+    }
+    
+    .note-card:hover {
+        transform: translateX(5px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.12);
+    }
+    
+    /* Input Group */
+    .note-input-group {
+        background: white;
+        border-radius: 30px;
+        padding: 5px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    
+    .note-input-group input {
+        border: none;
+        padding: 12px 20px;
+        border-radius: 25px;
+    }
+    
+    .note-input-group button {
+        border-radius: 25px;
+        padding: 12px 25px;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        border: none;
+        color: white;
+        font-weight: 600;
+    }
+    
+    /* Status Badge */
+    .status-badge {
+        font-size: 16px;
+        padding: 10px 25px;
+        border-radius: 30px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1200px;">
+    
+    <!-- Back Button -->
+    <a href="/dashboard/" class="btn btn-outline-secondary mb-4" style="border-radius: 30px; padding: 10px 25px;">
+        <i class="fas fa-arrow-left"></i> Back to Dashboard
+    </a>
+
+    <!-- Alert Header Card -->
+    <div class="card border-0 shadow-lg mb-4" style="border-radius: 20px; overflow: hidden;">
+        <div class="gradient-header text-white" style="padding: 30px;">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h2 class="mb-2">
+                        <i class="fas fa-exclamation-triangle"></i> 
+                        {{ alert.alert_id }}
+                    </h2>
+                    <p class="mb-0" style="opacity: 0.9;">Security Alert Detection</p>
+                </div>
+                <div class="col-md-4 text-md-end">
+                    <span class="badge badge-{{ alert.severity|lower }} status-badge">
+                        {{ alert.severity }}
+                    </span>
+                    <br>
+                    <span class="badge bg-warning mt-2 status-badge" id="alertStatusBadge" style="font-size: 14px;">
+                        {{ alert.alert_status }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-body" style="padding: 40px;">
+            
+            <!-- Info Grid -->
+            <div class="row mb-4">
+                <div class="col-md-6 mb-3">
+                    <div class="info-card">
+                        <h5>
+                            <i class="fas fa-shield-alt"></i> 
+                            Rule Information
+                        </h5>
+                        <table class="table table-borderless mb-0">
+                            <tr>
+                                <td width="35%"><strong>Rule ID:</strong></td>
+                                <td><span class="badge" style="background: #667eea; color: white;">{{ alert.rule_id }}</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Rule Name:</strong></td>
+                                <td>{{ alert.rule_name }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Confidence:</strong></td>
+                                <td>
+                                    <div class="progress" style="height: 25px; border-radius: 15px;">
+                                        <div class="progress-bar" 
+                                             style="width: {{ alert.confidence }}%; background: linear-gradient(90deg, #11998e, #38ef7d); border-radius: 15px; font-weight: 600;">
+                                            {{ alert.confidence }}%
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <div class="info-card">
+                        <h5>
+                            <i class="fas fa-desktop"></i> 
+                            Affected System
+                        </h5>
+                        <table class="table table-borderless mb-0">
+                            <tr>
+                                <td width="35%"><strong>Endpoint:</strong></td>
+                                <td><code>{{ alert.endpoint_id }}</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Hostname:</strong></td>
+                                <td><code>{{ alert.hostname }}</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>MITRE ATT&CK:</strong></td>
+                                <td>
+                                    {% for tech in alert.mitre_techniques %}
+                                        <span class="badge bg-danger">{{ tech }}</span>
+                                    {% endfor %}
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Evidence Section -->
+            <h4 class="mb-3">
+                <i class="fas fa-search" style="color: #d63031;"></i> 
+                Threat Evidence
+            </h4>
+            <div class="evidence-box mb-4">
+                {% for key, value in alert.evidence_summary.items %}
+                    <div class="evidence-item">
+                        <strong style="color: #667eea; text-transform: uppercase; font-size: 12px; letter-spacing: 1px;">
+                            {{ key }}
+                        </strong>
+                        <div style="margin-top: 8px;">
+                            <code style="background: #f8f9fa; padding: 8px 12px; border-radius: 8px; display: block; word-wrap: break-word;">
+                                {{ value }}
+                            </code>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <!-- Timeline Section -->
+            <h4 class="mb-3">
+                <i class="fas fa-clock" style="color: #6c5ce7;"></i> 
+                Detection Timeline
+            </h4>
+            <div class="timeline-box mb-4">
+                <div class="timeline-item">
+                    <strong>First Detected:</strong> {{ alert.first_detected|date:"M d, Y - g:i A" }}
+                </div>
+                <div class="timeline-item">
+                    <strong>Last Detected:</strong> {{ alert.last_detected|date:"M d, Y - g:i A" }}
+                </div>
+                <div class="timeline-item">
+                    <strong>Occurrences:</strong> 
+                    <span class="badge bg-light text-dark" style="font-size: 14px;">{{ alert.occurrence_count }}</span>
+                </div>
+            </div>
+
+            <!-- SOC Actions -->
+            <h4 class="mb-3">
+                <i class="fas fa-tools" style="color: #667eea;"></i> 
+                SOC Response Actions
+            </h4>
+            <div class="d-flex flex-wrap gap-3 mb-5">
+                <button class="action-btn-modern btn-resolve" onclick="showConfirmModal('resolve')">
+                    <i class="fas fa-check-circle"></i> Mark Resolved
+                </button>
+                <button class="action-btn-modern btn-false-positive" onclick="showConfirmModal('false-positive')">
+                    <i class="fas fa-times-circle"></i> Mark False Positive
+                </button>
+                <button class="action-btn-modern btn-assign" onclick="showAssignModal()">
+                    <i class="fas fa-user-plus"></i> Assign to Analyst
+                </button>
+            </div>
+
+            <!-- Investigation Notes -->
+            <h4 class="mb-3">
+                <i class="fas fa-clipboard" style="color: #667eea;"></i> 
+                Investigation Notes
+            </h4>
+            <div class="mb-4">
+                {% if alert.notes %}
+                    {% for note in alert.notes %}
+                    <div class="note-card">
+                        <div class="d-flex justify-content-between mb-2">
+                            <strong style="color: #667eea;">
+                                <i class="fas fa-user-circle"></i> {{ note.analyst }}
+                            </strong>
+                            <small class="text-muted">{{ note.timestamp|date:"M d, Y g:i A" }}</small>
+                        </div>
+                        <p class="mb-0" style="color: #2d3436;">{{ note.note }}</p>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="alert alert-info" style="border-radius: 15px; border: none; background: linear-gradient(135deg, #dfe6e9 0%, #b2bec3 100%);">
+                        <i class="fas fa-info-circle"></i> No investigation notes yet. Add your findings below.
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Add Note Input -->
+            <div class="note-input-group">
+                <div class="input-group">
+                    <input type="text" class="form-control" id="noteInput" 
+                           placeholder="Add your investigation note here...">
+                    <button class="btn" type="button" onclick="addNote()">
+                        <i class="fas fa-plus"></i> Add Note
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Custom Confirmation Modal -->
+<div class="custom-modal-overlay" id="confirmModal">
+    <div class="custom-modal">
+        <div class="modal-icon" id="modalIcon">
+            <i class="fas fa-question-circle"></i>
+        </div>
+        <h4 class="text-center mb-3" id="modalTitle">Confirm Action</h4>
+        <p class="text-center text-muted mb-4" id="modalMessage">Are you sure?</p>
+        <div class="d-flex gap-2 justify-content-center">
+            <button class="btn btn-secondary" style="border-radius: 25px; padding: 10px 30px;" onclick="closeModal()">
+                Cancel
+            </button>
+            <button class="btn btn-primary" style="border-radius: 25px; padding: 10px 30px;" id="confirmBtn">
+                Confirm
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Assign Modal -->
+<div class="custom-modal-overlay" id="assignModal">
+    <div class="custom-modal">
+        <div class="modal-icon info">
+            <i class="fas fa-user-plus"></i>
+        </div>
+        <h4 class="text-center mb-3">Assign Alert to Analyst</h4>
+        <div class="mb-4">
+            <label class="form-label">Analyst Email:</label>
+            <input type="email" class="form-control" id="analystEmail" 
+                   placeholder="analyst@company.com" 
+                   style="border-radius: 15px; padding: 12px;">
+        </div>
+        <div class="d-flex gap-2 justify-content-center">
+            <button class="btn btn-secondary" style="border-radius: 25px; padding: 10px 30px;" onclick="closeAssignModal()">
+                Cancel
+            </button>
+            <button class="btn btn-primary" style="border-radius: 25px; padding: 10px 30px;" onclick="confirmAssign()">
+                Assign
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Success Toast -->
+<div id="successToast" style="position: fixed; top: 20px; right: 20px; z-index: 10000; display: none;">
+    <div class="alert" style="border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); min-width: 300px;">
+        <i class="fas fa-check-circle"></i> <span id="toastMessage">Success!</span>
+    </div>
+</div>
+
+<script>
+let currentAction = '';
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+const csrftoken = getCookie('csrftoken');
+
+function showConfirmModal(action) {
+    currentAction = action;
+    const modal = document.getElementById('confirmModal');
+    const icon = document.getElementById('modalIcon');
+    const title = document.getElementById('modalTitle');
+    const message = document.getElementById('modalMessage');
+    const confirmBtn = document.getElementById('confirmBtn');
+    
+    if (action === 'resolve') {
+        icon.className = 'modal-icon success';
+        icon.innerHTML = '<i class="fas fa-check-circle"></i>';
+        title.textContent = 'Mark as Resolved';
+        message.textContent = 'Mark this alert as resolved? This indicates the threat has been addressed.';
+        confirmBtn.className = 'btn btn-success';
+        confirmBtn.onclick = markResolved;
+    } else if (action === 'false-positive') {
+        icon.className = 'modal-icon warning';
+        icon.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+        title.textContent = 'Mark as False Positive';
+        message.textContent = 'Mark this as a false positive? This indicates no actual threat was present.';
+        confirmBtn.className = 'btn btn-warning';
+        confirmBtn.onclick = markFalsePositive;
+    }
+    
+    modal.classList.add('show');
+}
+
+function closeModal() {
+    document.getElementById('confirmModal').classList.remove('show');
+}
+
+function showAssignModal() {
+    document.getElementById('assignModal').classList.add('show');
+}
+
+function closeAssignModal() {
+    document.getElementById('assignModal').classList.remove('show');
+}
+
+function showToast(message, type = 'success') {
+    const toast = document.getElementById('successToast');
+    const alert = toast.querySelector('.alert');
+    const messageSpan = document.getElementById('toastMessage');
+    
+    messageSpan.textContent = message;
+    
+    if (type === 'success') {
+        alert.className = 'alert';
+        alert.style.background = 'linear-gradient(135deg, #11998e, #38ef7d)';
+        alert.style.color = 'white';
+    }
+    
+    toast.style.display = 'block';
+    
+    setTimeout(() => {
+        toast.style.display = 'none';
+    }, 3000);
+}
+
+function markResolved() {
+    fetch('/api/v1/dashboard/alerts/{{ alert.alert_id }}/status/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrftoken
+        },
+        body: JSON.stringify({
+            status: 'RESOLVED',
+            note: 'Marked as resolved by SOC analyst'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            closeModal();
+            document.getElementById('alertStatusBadge').textContent = 'RESOLVED';
+            document.getElementById('alertStatusBadge').className = 'badge bg-success mt-2 status-badge';
+            showToast('✅ Alert marked as resolved successfully!');
+        }
+    })
+    .catch(error => console.error('Error:', error));
+}
+
+function markFalsePositive() {
+    fetch('/api/v1/dashboard/alerts/{{ alert.alert_id }}/status/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrftoken
+        },
+        body: JSON.stringify({
+            status: 'FALSE_POSITIVE',
+            note: 'Marked as false positive - legitimate activity'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            closeModal();
+            document.getElementById('alertStatusBadge').textContent = 'FALSE POSITIVE';
+            document.getElementById('alertStatusBadge').className = 'badge bg-secondary mt-2 status-badge';
+            showToast('✅ Alert marked as false positive');
+        }
+    })
+    .catch(error => console.error('Error:', error));
+}
+
+function confirmAssign() {
+    const email = document.getElementById('analystEmail').value.trim();
+    if (!email) {
+        alert('Please enter an email address');
+        return;
+    }
+    
+    fetch('/api/v1/dashboard/alerts/{{ alert.alert_id }}/assign/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrftoken
+        },
+        body: JSON.stringify({ analyst_email: email })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            closeAssignModal();
+            showToast('✅ Alert assigned to ' + email);
+            setTimeout(() => location.reload(), 1500);
+        }
+    })
+    .catch(error => console.error('Error:', error));
+}
+
+function addNote() {
+    const noteText = document.getElementById('noteInput').value.trim();
+    if (!noteText) {
+        showToast('⚠️ Please enter a note', 'warning');
+        return;
+    }
+
+    fetch('/api/v1/dashboard/alerts/{{ alert.alert_id }}/note/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrftoken
+        },
+        body: JSON.stringify({ note: noteText })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('✅ Note added successfully');
+            setTimeout(() => location.reload(), 1000);
+        }
+    })
+    .catch(error => console.error('Error:', error));
+}
+
+// Close modal on outside click
+document.querySelectorAll('.custom-modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            overlay.classList.remove('show');
+        }
+    });
+});
+
+console.log('🛡️ Professional alert detail page loaded');
+</script>
+
+{% endblock %}

@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block title %}Telemetry Events - EDR SOC{% endblock %}
+
+{% block extra_css %}
+<style>
+    .events-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 20px;
+        padding: 30px;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    
+    .search-box-modern {
+        border-radius: 30px;
+        border: 2px solid #e0e0e0;
+        padding: 15px 25px;
+        font-size: 15px;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    }
+    
+    .search-box-modern:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        outline: none;
+    }
+    
+    .events-table-wrapper {
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        overflow: hidden;
+    }
+    
+    .table-modern thead {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    }
+    
+    .table-modern tbody tr {
+        transition: all 0.2s ease;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .table-modern tbody tr:hover {
+        background: linear-gradient(90deg, #f8f9fa 0%, #e3f2fd 100%);
+        transform: scale(1.01);
+    }
+    
+    .event-badge {
+        border-radius: 20px;
+        padding: 5px 12px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    
+    .badge-process {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+    }
+    
+    .badge-network {
+        background: linear-gradient(135deg, #11998e, #38ef7d);
+        color: white;
+    }
+    
+    .badge-file {
+        background: linear-gradient(135deg, #ffd93d, #ffb400);
+        color: #2d3436;
+    }
+    
+    .severity-info { color: #17a2b8; }
+    .severity-warning { color: #ffc107; font-weight: 600; }
+    .severity-error { color: #dc3545; font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    
+    <!-- Header -->
+    <div class="events-header">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h2 class="mb-2">
+                    <i class="fas fa-stream"></i> 
+                    Telemetry Events Log
+                </h2>
+                <p class="mb-0" style="opacity: 0.9;">
+                    Real-time security event monitoring
+                </p>
+            </div>
+            <div class="col-md-4 text-md-end">
+                <div class="badge" style="background: rgba(255,255,255,0.2); font-size: 16px; padding: 10px 20px;">
+                    <i class="fas fa-database"></i> {{ event_count }} Events
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search & Filter -->
+    <div class="row mb-4">
+        <div class="col-md-8 mb-3">
+            <input type="text" 
+                   class="form-control search-box-modern" 
+                   id="eventSearch" 
+                   placeholder="🔍 Search events by ID, agent, type, or severity..."
+                   onkeyup="filterEvents()">
+        </div>
+        <div class="col-md-4 mb-3">
+            <select class="form-control search-box-modern" id="typeFilter" onchange="filterEvents()">
+                <option value="">All Event Types</option>
+                <option value="process">Process Events</option>
+                <option value="network">Network Events</option>
+                <option value="file">File Events</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Events Table -->
+    <div class="events-table-wrapper">
+        <div class="table-responsive">
+            <table class="table table-modern mb-0" id="eventsTable">
+                <thead>
+                    <tr style="border: none;">
+                        <th style="border: none; padding: 20px;">Event ID</th>
+                        <th style="border: none; padding: 20px;">Agent</th>
+                        <th style="border: none; padding: 20px;">Type</th>
+                        <th style="border: none; padding: 20px;">Severity</th>
+                        <th style="border: none; padding: 20px;">Timestamp</th>
+                        <th style="border: none; padding: 20px;">Time Ago</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in events %}
+                    <tr>
+                        <td style="padding: 15px 20px;">
+                            <code style="background: #f8f9fa; padding: 5px 10px; border-radius: 8px; font-size: 11px;">
+                                {{ event.event_id|truncatechars:20 }}
+                            </code>
+                        </td>
+                        <td style="padding: 15px 20px;">
+                            <strong>{{ event.agent_id }}</strong>
+                        </td>
+                        <td style="padding: 15px 20px;">
+                            <span class="event-badge badge-{{ event.event_type }}">
+                                {% if event.event_type == 'process' %}
+                                    <i class="fas fa-cog"></i>
+                                {% elif event.event_type == 'network' %}
+                                    <i class="fas fa-network-wired"></i>
+                                {% elif event.event_type == 'file' %}
+                                    <i class="fas fa-file"></i>
+                                {% endif %}
+                                {{ event.event_type|upper }}
+                            </span>
+                        </td>
+                        <td style="padding: 15px 20px;">
+                            <span class="severity-{{ event.severity }}">
+                                {% if event.severity == 'warning' or event.severity == 'error' %}
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                {% else %}
+                                    <i class="fas fa-info-circle"></i>
+                                {% endif %}
+                                {{ event.severity|upper }}
+                            </span>
+                        </td>
+                        <td style="padding: 15px 20px;">
+                            <small class="text-muted">
+                                {{ event.created_at|date:"M d, Y g:i A" }}
+                            </small>
+                        </td>
+                        <td style="padding: 15px 20px;">
+                            <span class="badge bg-secondary">
+                                {{ event.created_at|timesince }} ago
+                            </span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center" style="padding: 50px;">
+                            <i class="fas fa-inbox" style="font-size: 48px; color: #ddd;"></i>
+                            <p class="text-muted mt-3">No events found</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        {% if events %}
+        <div class="p-4 bg-light" style="border-top: 1px solid #e0e0e0;">
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="text-muted">
+                    Showing {{ event_count }} events
+                </span>
+                <a href="/dashboard/" class="btn btn-outline-primary" style="border-radius: 25px; padding: 8px 20px;">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+
+<script>
+function filterEvents() {
+    const searchInput = document.getElementById('eventSearch').value.toUpperCase();
+    const typeFilter = document.getElementById('typeFilter').value.toUpperCase();
+    const table = document.getElementById('eventsTable');
+    const rows = table.getElementsByTagName('tr');
+
+    for (let i = 1; i < rows.length; i++) {
+        const cells = rows[i].getElementsByTagName('td');
+        let showRow = true;
+        
+        // Search filter
+        if (searchInput) {
+            let found = false;
+            for (let j = 0; j < cells.length; j++) {
+                if (cells[j] && cells[j].textContent.toUpperCase().indexOf(searchInput) > -1) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) showRow = false;
+        }
+        
+        // Type filter
+        if (typeFilter && showRow) {
+            const typeCell = cells[2];
+            if (typeCell && typeCell.textContent.toUpperCase().indexOf(typeFilter) === -1) {
+                showRow = false;
+            }
+        }
+        
+        rows[i].style.display = showRow ? '' : 'none';
+    }
+}
+
+console.log('📋 Events log page loaded');
+console.log('Total events:', {{ event_count }});
+</script>
+
+{% endblock %}

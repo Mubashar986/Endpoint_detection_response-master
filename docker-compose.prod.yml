@@ -1,0 +1,57 @@
+﻿version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: edr-mongodb-prod
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data_prod:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: edr_telemetry
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    container_name: edr-redis-prod
+    ports:
+      - "6379:6379"
+    restart: always
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: edr-backend-prod
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mongodb
+      - redis
+    environment:
+      - DEBUG=False
+      - MONGO_HOST=mongodb
+      - REDIS_HOST=redis
+    volumes:
+      - ./backend:/app
+    restart: always
+    command: gunicorn edr_server.wsgi:application --bind 0.0.0.0:8000 --workers 4
+
+  celery:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: edr-celery-prod
+    depends_on:
+      - mongodb
+      - redis
+    environment:
+      - MONGO_HOST=mongodb
+      - REDIS_HOST=redis
+    restart: always
+    command: celery -A edr_server worker -l warning
+
+volumes:
+  mongo_data_prod:
+  redis_data_prod:

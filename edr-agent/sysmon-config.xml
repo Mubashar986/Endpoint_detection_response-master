@@ -1,0 +1,18 @@
+<Sysmon schemaversion="4.81">
+  <EventFiltering>
+    <!-- Process Creation: Event ID 1 (Log all processes) -->
+    <ProcessCreate onmatch="include">
+      <Image condition="is">*</Image>
+    </ProcessCreate>
+    
+    <!-- Network Connection: Event ID 3 (Log all connections) -->
+    <NetworkConnect onmatch="include">
+      <Image condition="is">*</Image>
+    </NetworkConnect>
+    
+    <!-- File Creation: Event ID 11 (Log all file creations) -->
+    <FileCreate onmatch="include">
+      <Image condition="is">*</Image>
+    </FileCreate>
+  </EventFiltering>
+</Sysmon>

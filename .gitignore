@@ -1,0 +1,74 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+ENV/
+env/
+
+# Django
+*.log
+db.sqlite3
+db.sqlite3-journal
+/media
+/staticfiles
+local_settings.py
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# C++ Build artifacts
+agent/build/
+agent/out/
+agent/.vs/
+agent/x64/
+agent/Debug/
+agent/Release/
+*.obj
+*.pdb
+*.ilk
+*.exe
+*.dll
+CMakeCache.txt
+CMakeFiles/
+
+# MongoDB
+*.bson
+
+# Redis
+dump.rdb
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Secrets
+*.key
+*.pem
+secrets/

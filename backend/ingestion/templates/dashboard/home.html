@@ -1,0 +1,476 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - EDR SOC{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ========== MODERN GRADIENT BACKGROUNDS ========== */
+    .gradient-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    .gradient-success {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    }
+    
+    .gradient-warning {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+    
+    .gradient-danger {
+        background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    }
+
+    /* ========== ANIMATED STAT CARDS ========== */
+    .stat-card-modern {
+        border-radius: 15px;
+        padding: 25px;
+        color: white;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    
+    .stat-card-modern:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+    }
+    
+    .stat-card-modern::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 100px;
+        height: 100px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 50%;
+        transform: translate(30%, -30%);
+    }
+    
+    .stat-card-modern h3 {
+        font-size: 36px;
+        font-weight: bold;
+        margin: 15px 0 5px 0;
+    }
+    
+    .stat-card-modern p {
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        opacity: 0.9;
+    }
+    
+    .stat-card-modern small {
+        background: rgba(255,255,255,0.2);
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 11px;
+    }
+
+    /* ========== ENHANCED ALERT TABLE ========== */
+    .alert-table-wrapper {
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    
+    .table-hover tbody tr {
+        transition: all 0.2s ease;
+    }
+    
+    .table-hover tbody tr:hover {
+        background: linear-gradient(90deg, #f8f9fa 0%, #e3f2fd 100%);
+        transform: scale(1.01);
+    }
+
+    /* ========== SEVERITY BADGES WITH GLOW ========== */
+    .badge-critical {
+        background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+        box-shadow: 0 0 10px rgba(255, 107, 107, 0.5);
+    }
+    
+    .badge-high {
+        background: linear-gradient(135deg, #ff8c00, #ffa500);
+        box-shadow: 0 0 10px rgba(255, 140, 0, 0.5);
+    }
+    
+    .badge-medium {
+        background: linear-gradient(135deg, #ffd93d, #ffb400);
+        box-shadow: 0 0 10px rgba(255, 217, 61, 0.5);
+    }
+    
+    .badge-low {
+        background: linear-gradient(135deg, #51cf66, #37b24d);
+        box-shadow: 0 0 10px rgba(81, 207, 102, 0.5);
+    }
+
+    /* ========== SEARCH BOX ENHANCEMENT ========== */
+    #alertSearchBox {
+        border: 2px solid #e0e0e0;
+        border-radius: 25px;
+        padding: 12px 20px;
+        font-size: 14px;
+        transition: all 0.3s ease;
+    }
+    
+    #alertSearchBox:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        outline: none;
+    }
+
+    /* ========== CHART CONTAINER ========== */
+    .chart-container {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        border-radius: 15px;
+        padding: 20px;
+    }
+
+    /* ========== PULSING LIVE INDICATOR ========== */
+    @keyframes pulse-glow {
+        0%, 100% {
+            box-shadow: 0 0 5px rgba(40, 167, 69, 0.5);
+        }
+        50% {
+            box-shadow: 0 0 20px rgba(40, 167, 69, 0.8);
+        }
+    }
+    
+    .badge-live {
+        animation: pulse-glow 2s infinite;
+    }
+
+    /* ========== COUNTDOWN BADGE ANIMATION ========== */
+    #countdown {
+        font-weight: bold;
+        transition: all 0.3s ease;
+    }
+
+    /* ========== QUICK ACTION BUTTONS ========== */
+    .quick-action-btn {
+        border-radius: 10px;
+        padding: 12px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        border: 2px solid;
+    }
+    
+    .quick-action-btn:hover {
+        transform: translateX(5px);
+        box-shadow: -5px 5px 15px rgba(0,0,0,0.1);
+    }
+
+    /* ========== RULE CARDS ========== */
+    .rule-card {
+        border-left: 4px solid #667eea;
+        transition: all 0.3s ease;
+    }
+    
+    .rule-card:hover {
+        border-left-width: 6px;
+        background: #f8f9fa;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    
+    <!-- ========== HEADER WITH REFRESH ========== -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">
+            <i class="fas fa-shield-alt" style="color: #667eea;"></i> 
+            <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                Security Operations Center
+            </span>
+        </h1>
+        <div>
+            <span class="badge bg-success badge-live">
+                <i class="fas fa-circle" style="font-size: 8px;"></i> LIVE
+            </span>
+            <button class="btn btn-primary ms-2" onclick="location.reload()" style="border-radius: 25px;">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- ========== MODERN STAT CARDS ========== -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="stat-card-modern gradient-primary">
+                <i class="fas fa-database" style="font-size: 40px; opacity: 0.3; position: absolute; right: 20px; top: 20px;"></i>
+                <div style="position: relative; z-index: 1;">
+                    <p class="mb-0">Total Events</p>
+                    <h3>{{ total_events|default:"0"|floatformat:0 }}</h3>
+                    <small>
+                        <i class="fas fa-arrow-up"></i> Active Monitoring
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 mb-3">
+            <div class="stat-card-modern gradient-success">
+                <i class="fas fa-shield-alt" style="font-size: 40px; opacity: 0.3; position: absolute; right: 20px; top: 20px;"></i>
+                <div style="position: relative; z-index: 1;">
+                    <p class="mb-0">Active Rules</p>
+                    <h3>{{ active_rules|default:"0" }}</h3>
+                    <small>
+                        <i class="fas fa-check-circle"></i> {{ active_rules }}/{{ total_rules }} Enabled
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 mb-3">
+            <div class="stat-card-modern gradient-warning">
+                <i class="fas fa-exclamation-triangle" style="font-size: 40px; opacity: 0.3; position: absolute; right: 20px; top: 20px;"></i>
+                <div style="position: relative; z-index: 1;">
+                    <p class="mb-0">Total Alerts</p>
+                    <h3>{{ total_alerts|default:"0" }}</h3>
+                    <small>
+                        <i class="fas fa-eye"></i> Threat Detection
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 mb-3">
+            <div class="stat-card-modern gradient-danger">
+                <i class="fas fa-bell" style="font-size: 40px; opacity: 0.3; position: absolute; right: 20px; top: 20px;"></i>
+                <div style="position: relative; z-index: 1;">
+                    <p class="mb-0">Unresolved</p>
+                    <h3>{{ unresolved|default:"0" }}</h3>
+                    <small>
+                        <i class="fas fa-fire"></i> Requires Action
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== CHART ========== -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm" style="border-radius: 15px;">
+                <div class="card-header gradient-primary text-white" style="border-radius: 15px 15px 0 0;">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-pie"></i> Alert Overview
+                    </h5>
+                </div>
+                <div class="card-body chart-container">
+                    <canvas id="alertChart" style="max-height: 250px;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== ALERTS TABLE ========== -->
+    <div class="card border-0 shadow-sm mb-4" style="border-radius: 15px;">
+        <div class="card-header gradient-primary text-white" style="border-radius: 15px 15px 0 0;">
+            <h5 class="mb-0">
+                <i class="fas fa-exclamation-circle"></i> Recent Unresolved Alerts
+            </h5>
+        </div>
+        <div class="card-body">
+            
+            <!-- Search Box -->
+            <div class="mb-4">
+                <input type="text" 
+                       class="form-control" 
+                       id="alertSearchBox" 
+                       placeholder="🔍 Search alerts..."
+                       onkeyup="filterAlerts()">
+            </div>
+
+            {% if recent_alerts %}
+                <div class="table-responsive alert-table-wrapper">
+                    <table class="table table-hover align-middle mb-0" id="alertsTable">
+                        <thead style="background: #f8f9fa;">
+                            <tr>
+                                <th style="border: none;">Alert ID</th>
+                                <th style="border: none;">Severity</th>
+                                <th style="border: none;">Rule</th>
+                                <th style="border: none;">Endpoint</th>
+                                <th style="border: none;">Time</th>
+                                <th style="border: none;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for alert in recent_alerts %}
+                            <tr>
+                                <td>
+                                    <a href="/dashboard/alerts/{{ alert.alert_id }}/" style="text-decoration: none; color: #667eea; font-weight: 500;">
+                                        <small>{{ alert.alert_id }}</small>
+                                    </a>
+                                </td>
+                                <td>
+                                    <span class="badge badge-{{ alert.severity|lower }}">
+                                        {{ alert.severity }}
+                                    </span>
+                                </td>
+                                <td><strong>{{ alert.rule_name }}</strong></td>
+                                <td>{{ alert.endpoint_id }}</td>
+                                <td>
+                                    <small class="text-muted">
+                                        <i class="far fa-clock"></i>
+                                        {{ alert.first_detected|timesince }} ago
+                                    </small>
+                                </td>
+                                <td>
+                                    <a href="/dashboard/alerts/{{ alert.alert_id }}/" 
+                                       class="btn btn-sm" 
+                                       style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 20px;">
+                                        <i class="fas fa-eye"></i> View
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert" style="background: linear-gradient(135deg, #51cf66, #37b24d); color: white; border: none; border-radius: 10px;">
+                    <i class="fas fa-check-circle"></i> 
+                    No unresolved alerts. Your system is secure!
+                </div>
+            {% endif %}
+        </div>
+        <div class="card-footer bg-light" style="border-radius: 0 0 15px 15px;">
+            <div class="d-flex justify-content-between">
+                <span class="text-muted">Showing {{ recent_alerts|length }} of {{ total_alerts }}</span>
+                <a href="/dashboard/alerts/" class="btn btn-sm btn-primary" style="border-radius: 20px;">
+                    View All →
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== RULES AND SIDEBAR ========== -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm" style="border-radius: 15px;">
+                <div class="card-header gradient-primary text-white" style="border-radius: 15px 15px 0 0;">
+                    <h5 class="mb-0">
+                        <i class="fas fa-shield-alt"></i> Active Detection Rules
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% for rule in active_rule_list %}
+                    <div class="rule-card p-3 mb-3 bg-white shadow-sm" style="border-radius: 10px;">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <span class="badge" style="background: #667eea; color: white;">{{ rule.rule_id }}</span>
+                                <h6 class="mt-2 mb-1">{{ rule.name }}</h6>
+                                <small class="text-muted">{{ rule.description }}</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge badge-{{ rule.severity|lower }}">{{ rule.severity }}</span>
+                                <br>
+                                <small class="text-muted mt-2 d-block">
+                                    <strong>{{ rule.alert_count_7d }}</strong> alerts
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm mb-3" style="border-radius: 15px;">
+                <div class="card-header gradient-primary text-white" style="border-radius: 15px 15px 0 0;">
+                    <h6 class="mb-0">
+                        <i class="fas fa-heartbeat"></i> System Status
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <small class="text-muted">Rules Active</small>
+                        <div class="progress mt-2" style="height: 8px; border-radius: 10px;">
+                            <div class="progress-bar" 
+                                 style="width: {% widthratio active_rules total_rules 100 %}%; background: linear-gradient(90deg, #11998e, #38ef7d);">
+                            </div>
+                        </div>
+                        <small class="text-muted">{{ active_rules }}/{{ total_rules }}</small>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="alert alert-info" style="border-radius: 10px;">
+                        <i class="fas fa-sync-alt"></i>
+                        <small>Auto-refresh: <span id="countdown" class="badge bg-primary">30</span>s</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm" style="border-radius: 15px;">
+                <div class="card-header bg-secondary text-white" style="border-radius: 15px 15px 0 0;">
+                    <h6 class="mb-0">
+                        <i class="fas fa-bolt"></i> Quick Actions
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="/dashboard/rules/" class="btn quick-action-btn btn-outline-primary">
+                            <i class="fas fa-cog"></i> Manage Rules
+                        </a>
+                        <a href="/dashboard/events/" class="btn quick-action-btn btn-outline-info">
+                            <i class="fas fa-list"></i> View Events
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Chart
+const ctx = document.getElementById('alertChart');
+fetch('/api/v1/dashboard/stats/')
+    .then(r => r.json())
+    .then(data => {
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Unresolved', 'Resolved'],
+                datasets: [{
+                    data: [data.unresolved_alerts || 0, (data.total_alerts - data.unresolved_alerts) || 0],
+                    backgroundColor: ['#ff6b6b', '#51cf66'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                plugins: { legend: { position: 'bottom' } }
+            }
+        });
+    });
+
+// Filter
+function filterAlerts() {
+    const input = document.getElementById('alertSearchBox');
+    const filter = input.value.toUpperCase();
+    const rows = document.querySelectorAll('#alertsTable tbody tr');
+    
+    rows.forEach(row => {
+        const text = row.textContent.toUpperCase();
+        row.style.display = text.includes(filter) ? '' : 'none';
+    });
+}
+
+// Countdown
+let countdown = 30;
+setInterval(() => {
+    countdown--;
+    document.getElementById('countdown').textContent = countdown;
+    if (countdown <= 0) location.reload();
+}, 1000);
+</script>
+
+{% endblock %}

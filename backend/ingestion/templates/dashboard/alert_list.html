@@ -1,0 +1,49 @@
+{% extends "base.html" %} 
+{% block content %}
+<div class="container-fluid">
+  <h2>All Alerts</h2>
+
+  <div class="card">
+    <div class="card-body">
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th>Alert ID</th>
+            <th>Severity</th>
+            <th>Rule</th>
+            <th>Endpoint</th>
+            <th>Status</th>
+            <th>Time</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for alert in alerts %}
+          <tr>
+            <td>{{ alert.alert_id }}</td>
+            <td>
+              <span class="badge badge-{{ alert.severity|lower }}"
+                >{{ alert.severity }}</span
+              >
+            </td>
+            <td>{{ alert.rule_name }}</td>
+            <td>{{ alert.endpoint_id }}</td>
+            <td>
+              <span class="badge bg-warning">{{ alert.alert_status }}</span>
+            </td>
+            <td>{{ alert.first_detected|timesince }} ago</td>
+            <td>
+              <a
+                href="/dashboard/alerts/{{ alert.alert_id }}/"
+                class="btn btn-sm btn-info"
+                >View</a
+              >
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

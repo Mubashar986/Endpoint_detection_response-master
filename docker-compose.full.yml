@@ -1,0 +1,77 @@
+version: "3.8"
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: edr-mongodb-full
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data_full:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: edr_telemetry
+    networks:
+      - edr-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: edr-redis-full
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data_full:/data
+    networks:
+      - edr-network
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: edr-backend-full
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mongodb
+      - redis
+    environment:
+      - DEBUG=True
+      - MONGO_HOST=mongodb
+      - MONGO_PORT=27017
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - ./backend:/app
+      - /app/.venv
+    networks:
+      - edr-network
+    restart: unless-stopped
+    command: python manage.py runserver 0.0.0.0:8000
+
+  celery:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: edr-celery-full
+    depends_on:
+      - mongodb
+      - redis
+      - backend
+    environment:
+      - MONGO_HOST=mongodb
+      - REDIS_HOST=redis
+    volumes:
+      - ./backend:/app
+    networks:
+      - edr-network
+    restart: unless-stopped
+    command: celery -A edr_server worker -l info
+
+volumes:
+  mongo_data_full:
+  redis_data_full:
+
+networks:
+  edr-network:
+    driver: bridge

@@ -1,0 +1,326 @@
+{% extends "base.html" %}
+
+{% block title %}Detection Rules - EDR SOC{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Custom Modal */
+    .custom-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(5px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        animation: fadeIn 0.3s ease;
+    }
+    
+    .custom-modal-overlay.show {
+        display: flex;
+    }
+    
+    .custom-modal {
+        background: white;
+        border-radius: 20px;
+        padding: 35px;
+        max-width: 450px;
+        width: 90%;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        animation: slideUp 0.3s ease;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    @keyframes slideUp {
+        from { transform: translateY(50px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
+    
+    .modal-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 20px;
+        font-size: 28px;
+    }
+    
+    /* Rule Cards */
+    .rule-card-pro {
+        border-radius: 20px;
+        border: none;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        transition: all 0.3s ease;
+        overflow: hidden;
+        background: white;
+    }
+    
+    .rule-card-pro:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+    }
+    
+    .rule-header-gradient {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 25px;
+    }
+    
+    .toggle-btn-pro {
+        border-radius: 30px;
+        padding: 12px 30px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border: none;
+        transition: all 0.3s ease;
+        background: linear-gradient(135deg, #ffd93d, #ffb400);
+        color: #2d3436;
+    }
+    
+    .toggle-btn-pro:hover {
+        transform: scale(1.05);
+        box-shadow: 0 5px 15px rgba(255, 217, 61, 0.4);
+    }
+    
+    /* Stats Banner */
+    .stats-banner {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 20px;
+        padding: 30px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    
+    .stat-item h2 {
+        font-size: 48px;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    
+    .stat-item p {
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        opacity: 0.9;
+        font-size: 14px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="fas fa-shield-alt" style="color: #667eea;"></i> 
+            <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                Detection Rules Management
+            </span>
+        </h2>
+        <a href="/dashboard/" class="btn btn-outline-secondary" style="border-radius: 30px; padding: 10px 25px;">
+            <i class="fas fa-arrow-left"></i> Dashboard
+        </a>
+    </div>
+
+    <!-- Stats Banner -->
+    <div class="stats-banner mb-5">
+        <div class="row text-center">
+            <div class="col-md-4 stat-item">
+                <h2>{{ total_rules }}</h2>
+                <p><i class="fas fa-shield"></i> Total Rules</p>
+            </div>
+            <div class="col-md-4 stat-item">
+                <h2>{{ enabled_rules }}</h2>
+                <p><i class="fas fa-check-circle"></i> Enabled</p>
+            </div>
+            <div class="col-md-4 stat-item">
+                <h2>{{ total_rules|add:"-"|add:enabled_rules|add:"0" }}</h2>
+                <p><i class="fas fa-pause-circle"></i> Disabled</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rules Grid -->
+    <div class="row">
+        {% for rule in rules %}
+        <div class="col-lg-6 mb-4">
+            <div class="rule-card-pro">
+                <div class="rule-header-gradient">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-1">{{ rule.rule_id }}</h5>
+                            <small style="opacity: 0.9;">{{ rule.name }}</small>
+                        </div>
+                        {% if rule.enabled %}
+                            <span class="badge" style="background: rgba(255,255,255,0.3); font-size: 13px; padding: 8px 15px;">
+                                <i class="fas fa-power-off"></i> ACTIVE
+                            </span>
+                        {% else %}
+                            <span class="badge bg-secondary" style="font-size: 13px; padding: 8px 15px;">
+                                <i class="fas fa-pause"></i> DISABLED
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="card-body" style="padding: 30px;">
+                    <p class="text-muted mb-4">{{ rule.description }}</p>
+                    
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <small class="text-muted d-block mb-1">Severity</small>
+                            <span class="badge badge-{{ rule.severity|lower }}" style="font-size: 13px; padding: 6px 12px;">
+                                {{ rule.severity }}
+                            </span>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block mb-1">Alerts (7d)</small>
+                            <span class="badge bg-info" style="font-size: 13px; padding: 6px 12px;">
+                                {{ rule.alert_count_7d }}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <small class="text-muted d-block mb-1">Last Triggered</small>
+                        {% if rule.last_triggered %}
+                            <span class="text-dark">{{ rule.last_triggered|timesince }} ago</span>
+                        {% else %}
+                            <span class="text-muted">Never</span>
+                        {% endif %}
+                    </div>
+
+                    <button class="toggle-btn-pro w-100" onclick="showToggleModal('{{ rule.rule_id }}', '{{ rule.name }}', {{ rule.enabled|lower }})">
+                        <i class="fas fa-sync-alt"></i> 
+                        {% if rule.enabled %}Disable Rule{% else %}Enable Rule{% endif %}
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+</div>
+
+<!-- Toggle Confirmation Modal -->
+<div class="custom-modal-overlay" id="toggleModal">
+    <div class="custom-modal">
+        <div class="modal-icon">
+            <i class="fas fa-sync-alt"></i>
+        </div>
+        <h4 class="text-center mb-2" id="modalTitle">Toggle Detection Rule</h4>
+        <p class="text-center text-muted mb-4" id="modalMessage"></p>
+        <div class="d-flex gap-2 justify-content-center">
+            <button class="btn btn-secondary" style="border-radius: 25px; padding: 10px 30px;" onclick="closeToggleModal()">
+                Cancel
+            </button>
+            <button class="btn btn-primary" style="border-radius: 25px; padding: 10px 30px;" id="confirmToggleBtn">
+                Confirm
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Success Toast -->
+<div id="successToast" style="position: fixed; top: 20px; right: 20px; z-index: 10000; display: none;">
+    <div class="alert alert-success" style="border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); min-width: 300px; background: linear-gradient(135deg, #11998e, #38ef7d); color: white; border: none;">
+        <i class="fas fa-check-circle"></i> <span id="toastMessage">Success!</span>
+    </div>
+</div>
+
+<script>
+let currentRuleId = '';
+let isCurrentlyEnabled = false;
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function showToggleModal(ruleId, ruleName, isEnabled) {
+    currentRuleId = ruleId;
+    isCurrentlyEnabled = isEnabled;
+    
+    const modal = document.getElementById('toggleModal');
+    const message = document.getElementById('modalMessage');
+    
+    if (isEnabled) {
+        message.innerHTML = `<strong>${ruleName}</strong><br>Disable this rule? It will stop generating alerts.`;
+    } else {
+        message.innerHTML = `<strong>${ruleName}</strong><br>Enable this rule? It will start detecting threats.`;
+    }
+    
+    modal.classList.add('show');
+}
+
+function closeToggleModal() {
+    document.getElementById('toggleModal').classList.remove('show');
+}
+
+function showToast(message) {
+    const toast = document.getElementById('successToast');
+    document.getElementById('toastMessage').textContent = message;
+    toast.style.display = 'block';
+    
+    setTimeout(() => {
+        toast.style.display = 'none';
+    }, 3000);
+}
+
+document.getElementById('confirmToggleBtn').onclick = function() {
+    fetch(`/api/v1/dashboard/rules/${currentRuleId}/toggle/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            closeToggleModal();
+            const action = data.enabled ? 'enabled' : 'disabled';
+            showToast(`✅ Rule ${action} successfully!`);
+            setTimeout(() => location.reload(), 1000);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('❌ Error toggling rule');
+    });
+};
+
+// Close on outside click
+document.getElementById('toggleModal').addEventListener('click', (e) => {
+    if (e.target.id === 'toggleModal') {
+        closeToggleModal();
+    }
+});
+
+console.log('🛡️ Rules management page loaded');
+</script>
+
+{% endblock %}
