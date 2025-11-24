@@ -1,0 +1,71 @@
+{% extends "admin/admin_base.html" %}
+
+{% block admin_content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{% if edit_user %}Edit User: {{ edit_user.username }}{% else %}Create New User{% endif %}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'ingestion:admin_user_list' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Back to List
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+
+                    {% if not edit_user %}
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="username" name="username" required>
+                        <div class="form-text">Required. 150 characters or fewer. Letters, digits and @/./+/-/_ only.
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <input type="text" class="form-control" value="{{ edit_user.username }}" disabled>
+                        <div class="form-text">Username cannot be changed.</div>
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="email" name="email"
+                            value="{{ edit_user.email|default:'' }}">
+                    </div>
+
+                    {% if not edit_user %}
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-4">
+                        <label for="role" class="form-label">Role (Group)</label>
+                        <select class="form-select" id="role" name="role">
+                            <option value="">-- Select Role --</option>
+                            {% for group in groups %}
+                            <option value="{{ group.name }}" {% if group.name == current_role %}selected{% endif %}>
+                                {{ group.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Assigning a role grants specific permissions.</div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            {% if edit_user %}Update User{% else %}Create User{% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

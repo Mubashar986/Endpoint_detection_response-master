@@ -6,13 +6,23 @@ class TelemetrySerializer(serializers.Serializer):
     agent_id = serializers.CharField(required=True)
     event_id = serializers.CharField(required=True)
     event_type = serializers.ChoiceField(choices=['process', 'file', 'network'], required=True)
-    timestamp = serializers.IntegerField(required=True)
+    timestamp = serializers.IntegerField(required=False)
+
+
     severity = serializers.CharField(required=True)
     version = serializers.CharField(required=True)
     host = serializers.DictField(required=True)
     process = serializers.DictField(required=False)
     file = serializers.DictField(required=False)
     network = serializers.DictField(required=False)
+
+
+
+
+
+
+
+    
     
     def validate_timestamp(self, value):
         """

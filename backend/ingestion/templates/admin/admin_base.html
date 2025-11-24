@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <!-- ADMIN SIDEBAR -->
+    <div class="col-md-2 bg-dark min-vh-100 p-0">
+        <div class="d-flex flex-column p-3 text-white">
+            <a href="{% url 'ingestion:admin_dashboard' %}"
+                class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-white text-decoration-none">
+                <span class="fs-4 fw-bold">Admin Panel</span>
+            </a>
+            <hr>
+            <ul class="nav nav-pills flex-column mb-auto">
+                <li class="nav-item">
+                    <a href="{% url 'ingestion:admin_dashboard' %}"
+                        class="nav-link text-white {% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}">
+                        <i class="fas fa-tachometer-alt me-2"></i> Overview
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'ingestion:admin_user_list' %}"
+                        class="nav-link text-white {% if 'user' in request.path %}active{% endif %}">
+                        <i class="fas fa-users me-2"></i> Users & Roles
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'ingestion:rules' %}" class="nav-link text-white">
+                        <i class="fas fa-shield-alt me-2"></i> Detection Rules
+                    </a>
+                </li>
+                <li>
+                    <a href="#" class="nav-link text-white">
+                        <i class="fas fa-cogs me-2"></i> Settings
+                    </a>
+                </li>
+            </ul>
+            <hr>
+            <div class="dropdown">
+                <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle"
+                    id="dropdownUser1" data-bs-toggle="dropdown" aria-expanded="false">
+                    <img src="https://ui-avatars.com/api/?name={{ user.username }}&background=random" alt="" width="32"
+                        height="32" class="rounded-circle me-2">
+                    <strong>{{ user.username }}</strong>
+                </a>
+                <ul class="dropdown-menu dropdown-menu-dark text-small shadow" aria-labelledby="dropdownUser1">
+                    <li><a class="dropdown-item" href="{% url 'ingestion:logout' %}">Sign out</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADMIN CONTENT AREA -->
+    <div class="col-md-10 p-4 bg-light">
+        {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        {% block admin_content %}{% endblock %}
+    </div>
+</div>
+{% endblock %}

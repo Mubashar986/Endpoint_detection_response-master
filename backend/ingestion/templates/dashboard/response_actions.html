@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Response Actions Audit - EDR SOC{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-history text-primary"></i> Response Actions Audit Trail
+        </h2>
+        <a href="/dashboard/" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left"></i> Back to Dashboard
+        </a>
+    </div>
+
+    <!-- Audit Log Table -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 bg-gradient-primary text-white">
+            <h6 class="m-0 font-weight-bold">Action History</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover" id="dataTable" width="100%" cellspacing="0">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Action Type</th>
+                            <th>Target Agent</th>
+                            <th>Analyst</th>
+                            <th>Reason</th>
+                            <th>Status</th>
+                            <th>Result</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for action in actions %}
+                        <tr>
+                            <td>{{ action.timestamp|date:"M d, Y H:i:s" }}</td>
+                            <td>
+                                {% if action.action_type == 'kill_process' %}
+                                <span class="badge bg-danger">KILL PROCESS</span>
+                                {% elif action.action_type == 'isolate_host' %}
+                                <span class="badge bg-warning text-dark">ISOLATE HOST</span>
+                                {% elif action.action_type == 'deisolate_host' %}
+                                <span class="badge bg-success">DE-ISOLATE</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ action.action_type }}</span>
+                                {% endif %}
+                            </td>
+                            <td><code>{{ action.target_agent }}</code></td>
+                            <td>
+                                <i class="fas fa-user-circle text-gray-500"></i> {{ action.user }}
+                            </td>
+                            <td>{{ action.reason }}</td>
+                            <td>
+                                {% if action.status == 'completed' or action.status == 'success' %}
+                                <span class="badge bg-success"><i class="fas fa-check"></i> Success</span>
+                                {% elif action.status == 'failed' %}
+                                <span class="badge bg-danger"><i class="fas fa-times"></i> Failed</span>
+                                {% elif action.status == 'initiated' or action.status == 'new' %}
+                                <span class="badge bg-info"><i class="fas fa-spinner fa-spin"></i> Pending</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ action.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small class="text-muted">{{ action.result_summary|default:"-" }}</small>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-4">
+                                <div class="text-muted">
+                                    <i class="fas fa-inbox fa-3x mb-3"></i>
+                                    <p>No response actions recorded yet.</p>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "HttpClient.hpp"          // HTTP client for Django
+#include "CommandProcessor.hpp"    // Response Actions
 #include "EventConverter.hpp"      // Event format converter
 // #include "WebSocketClient.hpp"  // WebSocket (uncomment when needed)
 #include "ConfigReader.hpp"
@@ -78,6 +79,10 @@ int main() {
         std::cout << "  ✓ HTTP client initialized" << std::endl;
         std::cout << "  → Target: " << httpServer << ":" << httpPort << apiPath << std::endl;
         
+        // Step 2.5: Start Command Polling
+        std::cout << "\n[2.5/4] Starting Command Polling Service..." << std::endl;
+        CommandProcessor::startCommandPolling();
+
         // Step 3: WebSocket (Ready but not active)
         if (hasWebSocket) {
             std::cout << "\n[WebSocket] Configuration found but not active" << std::endl;
@@ -162,6 +167,9 @@ int main() {
 
         // Cleanup
         std::cout << "\n\nShutting down agent..." << std::endl;
+        
+        CommandProcessor::stopCommandPolling();
+
         for (auto hSub : subscriptions) {
             if (hSub) {
                 EvtClose(hSub);
@@ -266,12 +274,42 @@ DWORD ProcessEvent(EVT_HANDLE hEvent) {
                     goto cleanup;
                 }
                 
-                // Send to Django
-                if (g_httpClient->sendTelemetry(djangoEvent)) {
-                    std::cout << "✅ Event sent to Django successfully" << std::endl;
-                } else {
-                    std::cerr << "❌ Failed to send event to Django" << std::endl;
+                // ==================================================================================
+                // BATCHING LOGIC (Optimization Phase 1)
+                // ==================================================================================
+                // We use 'static' here so these variables persist across function calls.
+                // If they weren't static, 'eventBuffer' would be re-created empty every time ProcessEvent runs.
+                static std::vector<nlohmann::json> eventBuffer; 
+                
+                // 'const size_t' defines a constant integer that cannot be changed.
+                // We set the batch size to 50 as requested for optimization testing.
+                static const size_t BATCH_SIZE = 100;
+                
+                // 'push_back' adds the new event to the end of the vector (like list.append() in Python).
+                eventBuffer.push_back(djangoEvent);
+                std::cout << "  [Buffer] Added event. Size: " << eventBuffer.size() << "/" << BATCH_SIZE << std::endl;
+                
+                // Check if our "carton of eggs" is full
+                if (eventBuffer.size() >= BATCH_SIZE) {
+                    std::cout << "  [Batch] Sending " << eventBuffer.size() << " events..." << std::endl;
+                    
+                    // Send the whole vector at once!
+                    // This reduces network overhead by making 1 request instead of 10.
+                    if (g_httpClient->sendTelemetryBatch(eventBuffer)) {
+                        std::cout << "✅ Batch sent successfully" << std::endl;
+                        
+                        // Clear the buffer so it's ready for the next batch of events.
+                        eventBuffer.clear();
+                    } else {
+                        std::cerr << "❌ Failed to send batch" << std::endl;
+                        
+                        // If sending fails, we clear the buffer to prevent memory leaks (growing forever).
+                        // In a real enterprise EDR, we might save this to a file (Disk Buffering) to retry later.
+                        eventBuffer.clear(); 
+                    }
                 }
+                // If buffer isn't full yet, we do nothing and wait for the next event.
+                // ==================================================================================
                 
                 std::cout << "---" << std::endl;
                 

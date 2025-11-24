@@ -27,6 +27,8 @@ set(AGENT_SOURCES
     HttpClient.cpp
     EventConverter.cpp
     ConfigReader.cpp
+    SimpleGzip.cpp    # Custom Gzip Encoder
+    CommandProcessor.cpp
 )
 
 # Create executable
@@ -39,6 +41,7 @@ target_link_libraries(edr-agent-http PRIVATE
     winhttp      # Windows HTTP (built-in)
     wevtapi      # Windows Event Log (built-in)
     rpcrt4       # UUID generation (built-in)
+    iphlpapi     # IP Helper API (for GetAdaptersInfo)
 )
 
 # Windows settings

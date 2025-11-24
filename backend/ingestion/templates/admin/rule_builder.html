@@ -1,0 +1,85 @@
+{% extends "admin/admin_base.html" %}
+
+{% block admin_content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{% if rule %}Edit Rule: {{ rule.name }}{% else %}Create Detection Rule{% endif %}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'ingestion:rules' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Back to Rules
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Rule Name</label>
+                        <input type="text" class="form-control" id="name" name="name" value="{{ rule.name|default:'' }}"
+                            required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="severity" class="form-label">Severity</label>
+                        <select class="form-select" id="severity" name="severity" required>
+                            <option value="CRITICAL" {% if rule.severity == 'CRITICAL' %}selected{% endif %}>CRITICAL
+                            </option>
+                            <option value="HIGH" {% if rule.severity == 'HIGH' %}selected{% endif %}>HIGH</option>
+                            <option value="MEDIUM" {% if rule.severity == 'MEDIUM' %}selected{% endif %}>MEDIUM</option>
+                            <option value="LOW" {% if rule.severity == 'LOW' %}selected{% endif %}>LOW</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description"
+                            rows="3">{{ rule.description|default:'' }}</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="logic" class="form-label">Rule Logic (JSON)</label>
+                        <div class="alert alert-info py-2 small">
+                            Define the matching criteria. Example:
+                            <code>{"event_type": "process_start", "process_name": "cmd.exe"}</code>
+                        </div>
+                        <textarea class="form-control font-monospace" id="logic" name="logic" rows="10"
+                            required>{{ rule_logic_json|default:'' }}</textarea>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            {% if rule %}Update Rule{% else %}Create Rule{% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- HELP SIDEBAR -->
+    <div class="col-lg-4">
+        <div class="card bg-light border-0">
+            <div class="card-body">
+                <h5 class="card-title">Logic Guide</h5>
+                <p class="card-text small">Rules match against telemetry events. Common fields include:</p>
+                <ul class="small text-muted ps-3">
+                    <li><code>event_type</code>: process_start, file_create, etc.</li>
+                    <li><code>process_name</code>: Name of the executable</li>
+                    <li><code>command_line</code>: Full command arguments</li>
+                    <li><code>remote_ip</code>: For network events</li>
+                </ul>
+                <hr>
+                <h6 class="small fw-bold">Example: Detect PowerShell</h6>
+                <pre class="bg-dark text-light p-2 rounded small">{
+  "event_type": "process_start",
+  "process_name": "powershell.exe"
+}</pre>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

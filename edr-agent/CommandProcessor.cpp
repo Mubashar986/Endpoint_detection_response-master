@@ -1,6 +1,7 @@
 
 #include "CommandProcessor.hpp"
 #include "ConfigReader.hpp"
+#include "HttpClient.hpp"
 #include <iostream>
 #include <sstream>
 #include <iomanip>
@@ -10,14 +11,27 @@
 #include <winnt.h>
 #include <stdexcept>
 #include <cstdlib>
-
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
+#include <vector>
+#include <TlHelp32.h>
 
 #pragma comment(lib, "iphlpapi.lib")
-
 
 namespace CommandProcessor 
 {
     using json = nlohmann::json;
+
+    // Polling Thread State
+    static std::atomic<bool> pollingActive{false};
+    static std::condition_variable pollCV;
+    static std::mutex pollMutex;
+    static std::thread pollThread;
+
+    // Forward declaration of internal helper
+    json executeResponseCommand(const std::string& type, const json& params);
 
     std::string executeCommand(const std::string& command) {
         json commandJson, responseJson;
@@ -31,6 +45,12 @@ namespace CommandProcessor
         catch (const std::exception&) 
         {
             return R"({"type": "error", "status": "invalid JSON or missing 'type' field"})";
+        }
+
+        // Check for Response Actions first
+        if (commandType == "kill_process" || commandType == "isolate_host" || commandType == "deisolate_host") {
+            json params = commandJson.value("parameters", json::object());
+            return executeResponseCommand(commandType, params).dump(4);
         }
 
         auto executeCommandByType = [&]() -> json 
@@ -125,6 +145,210 @@ namespace CommandProcessor
         return responseJson.dump(4);
     }
 
+    // Helper to execute response actions
+    json executeResponseCommand(const std::string& type, const json& params) {
+        if (type == "kill_process") {
+            if (params.contains("pid") && params["pid"].is_number()) {
+                unsigned long pid = params["pid"];
+                if (killProcessTree(pid)) {
+                    return {{"status", "success"}, {"message", "Process tree terminated"}};
+                } else {
+                    return {{"status", "failed"}, {"message", "Failed to terminate process (Access Denied or Invalid PID)"}};
+                }
+            }
+            return {{"status", "failed"}, {"message", "Missing PID"}};
+        }
+
+        if (type == "isolate_host") {
+            // Default to localhost if not provided (safe failover)
+            ConfigReader config("config.json");
+            std::string serverIp = config.getHttpServer(); 
+            // Extract IP from URL (e.g., http://192.168.1.100:8000 -> 192.168.1.100)
+            // For MVP, we'll assume config has IP. If it's localhost, use 127.0.0.1
+            if (serverIp.find("localhost") != std::string::npos) serverIp = "127.0.0.1";
+            
+            if (isolateHost(serverIp, 8000)) { // Hardcoded port for MVP
+                return {{"status", "success"}, {"message", "Host isolated"}};
+            }
+            return {{"status", "failed"}, {"message", "Failed to isolate host"}};
+        }
+
+        if (type == "deisolate_host") {
+            if (deisolateHost()) {
+                return {{"status", "success"}, {"message", "Host de-isolated"}};
+            }
+            return {{"status", "failed"}, {"message", "Failed to de-isolate host"}};
+        }
+
+        return {{"status", "error"}, {"message", "Unknown command type"}};
+    }
+
+    // ==========================================
+    // RESPONSE ACTIONS IMPLEMENTATION
+    // ==========================================
+
+    bool killProcess(unsigned long pid) {
+        HANDLE hProcess = OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE, FALSE, pid);
+        if (hProcess == NULL) {
+            return false;
+        }
+
+        if (!TerminateProcess(hProcess, 1)) {
+            CloseHandle(hProcess);
+            return false;
+        }
+
+        // Verify death (wait up to 2 seconds)
+        DWORD waitResult = WaitForSingleObject(hProcess, 2000);
+        CloseHandle(hProcess);
+
+        return waitResult == WAIT_OBJECT_0;
+    }
+
+    bool killProcessTree(unsigned long pid) {
+        // Find children
+        std::vector<unsigned long> children;
+        HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        
+        if (snapshot != INVALID_HANDLE_VALUE) {
+            PROCESSENTRY32 pe32;
+            pe32.dwSize = sizeof(PROCESSENTRY32);
+            if (Process32First(snapshot, &pe32)) {
+                do {
+                    if (pe32.th32ParentProcessID == pid) {
+                        children.push_back(pe32.th32ProcessID);
+                    }
+                } while (Process32Next(snapshot, &pe32));
+            }
+            CloseHandle(snapshot);
+        }
+
+        // Kill children first (recursive)
+        for (unsigned long childPid : children) {
+            killProcessTree(childPid);
+        }
+
+        // Kill parent
+        return killProcess(pid);
+    }
+
+    bool runNetshCommand(const std::string& args) {
+        std::string fullCmd = "netsh.exe " + args;
+        
+        STARTUPINFOA si = {sizeof(si)};
+        PROCESS_INFORMATION pi;
+        
+        BOOL success = CreateProcessA(
+            NULL, (LPSTR)fullCmd.c_str(), NULL, NULL, FALSE, 
+            CREATE_NO_WINDOW, NULL, NULL, &si, &pi
+        );
+        
+        if (!success) return false;
+        
+        WaitForSingleObject(pi.hProcess, 5000);
+        DWORD exitCode;
+        GetExitCodeProcess(pi.hProcess, &exitCode);
+        
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+        
+        return exitCode == 0;
+    }
+
+    bool isolateHost(const std::string& serverIp, int serverPort) {
+        // 1. Block all outbound
+        if (!runNetshCommand("advfirewall firewall add rule name=\"EDR_BLOCK_ALL\" dir=out action=block")) return false;
+        
+        // 2. Allow EDR Server
+        std::string allowServer = "advfirewall firewall add rule name=\"EDR_ALLOW_SERVER\" dir=out action=allow remoteip=" + serverIp + " protocol=TCP remoteport=" + std::to_string(serverPort);
+        if (!runNetshCommand(allowServer)) return false;
+
+        // 3. Allow DNS (UDP 53)
+        if (!runNetshCommand("advfirewall firewall add rule name=\"EDR_ALLOW_DNS\" dir=out action=allow protocol=UDP remoteport=53")) return false;
+
+        return true;
+    }
+
+    bool deisolateHost() {
+        runNetshCommand("advfirewall firewall delete rule name=\"EDR_BLOCK_ALL\"");
+        runNetshCommand("advfirewall firewall delete rule name=\"EDR_ALLOW_SERVER\"");
+        runNetshCommand("advfirewall firewall delete rule name=\"EDR_ALLOW_DNS\"");
+        return true;
+    }
+
+    // ==========================================
+    // POLLING THREAD IMPLEMENTATION
+    // ==========================================
+
+    void pollCommandsLoop() {
+        HttpClient client;
+        ConfigReader config("config.json");
+        std::string serverHost = config.getHttpServer();
+        int serverPort = config.getHttpPort();
+        std::string serverUrl = "http://" + serverHost + ":" + std::to_string(serverPort);
+        std::string authToken = config.getAuthToken();
+        
+        // Ensure URL doesn't end with slash for consistency
+        if (serverUrl.back() == '/') serverUrl.pop_back();
+
+        client.addHeader("Authorization", "Token " + authToken);
+        client.addHeader("X-Agent-ID", getHostName()); // Use hostname as Agent ID for MVP
+
+        std::cout << "[CommandPoll] Thread started. Polling " << serverUrl << std::endl;
+
+        while (pollingActive) {
+            try {
+                std::string response = client.GET(serverUrl + "/api/v1/commands/poll/");
+                
+                if (!response.empty() && response != "{}" && response.length() > 2) {
+                    json commandJson = json::parse(response);
+                    
+                    if (commandJson.contains("command_id")) {
+                        std::string commandId = commandJson["command_id"];
+                        std::string commandType = commandJson["type"];
+                        json params = commandJson.value("parameters", json::object());
+                        
+                        std::cout << "[CommandPoll] Received command: " << commandType << std::endl;
+
+                        // Execute command
+                        json result = executeResponseCommand(commandType, params);
+                        
+                        // Report result back
+                        client.POST(serverUrl + "/api/v1/commands/result/" + commandId + "/", 
+                                    result.dump());
+                    }
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "[CommandPoll] Error: " << e.what() << std::endl;
+            }
+            
+            // Interruptible sleep for 5 seconds
+            std::unique_lock<std::mutex> lock(pollMutex);
+            pollCV.wait_for(lock, std::chrono::seconds(5), []{ return !pollingActive; });
+        }
+    }
+
+    void startCommandPolling() {
+        if (!pollingActive) {
+            pollingActive = true;
+            pollThread = std::thread(pollCommandsLoop);
+            pollThread.detach();
+            std::cout << "[CommandPoll] Service Started" << std::endl;
+        }
+    }
+
+    void stopCommandPolling() {
+        if (pollingActive) {
+            pollingActive = false;
+            pollCV.notify_all();
+            if (pollThread.joinable()) pollThread.join();
+            std::cout << "[CommandPoll] Service Stopped" << std::endl;
+        }
+    }
+
+    // ==========================================
+    // EXISTING SYSTEM INFO FUNCTIONS
+    // ==========================================
 
     std::string getHostName() 
     {
@@ -275,9 +499,3 @@ namespace CommandProcessor
     }
 
 }
-
-
-
-
-
-

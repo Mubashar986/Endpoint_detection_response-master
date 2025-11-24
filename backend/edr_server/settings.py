@@ -57,6 +57,7 @@ REST_FRAMEWORK = {
 
 
 MIDDLEWARE = [
+    'edr_server.middleware.DecompressMiddleware',  # Custom Gzip Middleware
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -121,11 +122,12 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
 
-USE_I18N = True
-
+TIME_ZONE = 'Asia/Karachi'
 USE_TZ = True
+
+
+
 
 
 # Static files (CSS, JavaScript, Images)
@@ -137,6 +139,10 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Authentication Redirects
+LOGIN_REDIRECT_URL = '/dashboard/'
+LOGOUT_REDIRECT_URL = '/accounts/login/'  # Corrected path
 
 
 

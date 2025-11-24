@@ -16,6 +16,10 @@ std::string EventConverter::getHostname() {
     return "Unknown";
 }
 
+
+
+
+
 std::string EventConverter::generateEventId() {
     static std::random_device rd;
     static std::mt19937 gen(rd());
@@ -94,14 +98,20 @@ nlohmann::json EventConverter::sysmonEventToDjangoFormat(const nlohmann::json& s
         }
         
         std::cout << "[EventConverter] Event Type: " << eventType << std::endl;
-        
-        std::string systemTime = system["TimeCreated"]["SystemTime"];
+        // ===== FIX: Use proper timestamp format =====
+
+         std::string systemTime = system["TimeCreated"]["SystemTime"];
         time_t timestamp = parseSystemTime(systemTime);
         
+        
+     
         djangoEvent["agent_id"] = getHostname();
         djangoEvent["event_id"] = generateEventId();
         djangoEvent["event_type"] = eventType;
+        
         djangoEvent["timestamp"] = timestamp;
+
+
         djangoEvent["severity"] = determineSeverity(eventId);
         djangoEvent["version"] = "1.0";
         

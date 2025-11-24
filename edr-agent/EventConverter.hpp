@@ -14,6 +14,7 @@ private:
     static long long parseSystemTime(const std::string& systemTime);
     static std::string mapSysmonToEventType(int eventId);
     static std::string determineSeverity(int eventId);
+    
 };
 
 #endif

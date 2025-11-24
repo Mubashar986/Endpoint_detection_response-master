@@ -1,0 +1,130 @@
+{% extends "admin/admin_base.html" %}
+
+{% block admin_content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">User Management</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'ingestion:admin_user_create' %}" class="btn btn-sm btn-primary">
+            <i class="fas fa-plus me-1"></i> Add User
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>User</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Last Login</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.id }}</td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <img src="https://ui-avatars.com/api/?name={{ user.username }}&size=32"
+                                    class="rounded-circle me-2">
+                                <div>
+                                    <div class="fw-bold">{{ user.username }}</div>
+                                    <div class="text-muted small">{{ user.email }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            {% for group in user.groups.all %}
+                            <span class="badge bg-info text-dark">{{ group.name }}</span>
+                            {% empty %}
+                            <span class="badge bg-secondary">No Role</span>
+                            {% endfor %}
+                            {% if user.is_superuser %}
+                            <span class="badge bg-danger">Superuser</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.is_active %}
+                            <span class="badge bg-success"><i class="fas fa-check"></i> Active</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ user.last_login|default:"Never" }}</td>
+                        <td>
+                            <div class="btn-group">
+                                <a href="{% url 'ingestion:admin_user_edit' user.id %}"
+                                    class="btn btn-sm btn-outline-primary" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                {% if not user.is_superuser %}
+                                <button class="btn btn-sm btn-outline-danger" title="Delete"
+                                    onclick="showDeleteModal({{ user.id }}, '{{ user.username }}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteUserModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-danger text-white border-0">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Confirm Deletion
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="text-center mb-3">
+                    <div class="mx-auto mb-3"
+                        style="width: 60px; height: 60px; background: linear-gradient(135deg, #dc3545, #c82333); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-user-times fa-2x text-white"></i>
+                    </div>
+                    <h6 class="mb-2">Delete User: <strong id="deleteUsername"></strong>?</h6>
+                    <p class="text-muted mb-0">This action cannot be undone. All user data will be permanently removed.
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer border-0 justify-content-center pb-4">
+                <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>Cancel
+                </button>
+                <form id="deleteUserForm" method="post" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger px-4">
+                        <i class="fas fa-trash me-1"></i>Delete User
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let deleteUserModal = null;
+
+    document.addEventListener('DOMContentLoaded', function () {
+        deleteUserModal = new bootstrap.Modal(document.getElementById('deleteUserModal'));
+    });
+
+    function showDeleteModal(userId, username) {
+        document.getElementById('deleteUsername').textContent = username;
+        document.getElementById('deleteUserForm').action = `/dashboard/admin/users/${userId}/delete/`;
+        deleteUserModal.show();
+    }
+</script>
+{% endblock %}
