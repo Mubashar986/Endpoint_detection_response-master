@@ -10,7 +10,11 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,12 +24,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-t)m^2%)_f4^u^050hiy^56vg0j3tmwm5pqzyugaqt*a((^dza='
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-fallback-key-for-dev-only')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = []
+if not os.environ.get('DJANGO_SECRET_KEY') and not DEBUG:
+    print("WARNING: Running in production (DEBUG=False) without DJANGO_SECRET_KEY set!")
+
+ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 
 # Application definition
@@ -164,7 +171,37 @@ CELERY_TASK_SERIALIZER = 'json'
 
 # Windows-specific fix
 CELERY_TASK_ALWAYS_EAGER = False  # Keep async behavior
-CELERY_WORKER_POOL = 'solo'  # Use solo pool for Windows
+CELERY_WORKER_POOL = 'gevent'  # Use gevent pool for concurrency on Windows
+
+
+# ========== REDIS CACHE FOR RATE LIMITING ==========
+# Use Redis database 1 (separate from Celery which uses database 0)
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379/1',  # Database 1 for caching/rate limiting
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        },
+        'TIMEOUT': 60,  # Default timeout for cache keys (1 minute)
+    }
+}
+
+# ========== RATE LIMITING CONFIGURATION ==========
+RATELIMIT_ENABLE = True  # Set to False to disable globally (for testing)
+RATELIMIT_USE_CACHE = 'default'  # Use the default cache backend defined above
+RATELIMIT_FAIL_OPEN = True  # If Redis is down, allow requests (don't block EDR operations)
+
+# Rate limit values (configurable per environment)
+# These can be overridden in .env for different environments (dev/prod)
+RATELIMIT_TELEMETRY = os.getenv('RATELIMIT_TELEMETRY', '1000/m')  # High volume - agent telemetry
+RATELIMIT_AUTH = os.getenv('RATELIMIT_AUTH', '5/1h')  # Strict - prevent brute force
+RATELIMIT_DASHBOARD_READ = os.getenv('RATELIMIT_DASHBOARD_READ', '100/m')  # Dashboard API reads
+RATELIMIT_DASHBOARD_WRITE = os.getenv('RATELIMIT_DASHBOARD_WRITE', '50/m')  # Dashboard API writes
+RATELIMIT_RESPONSE_ACTION = os.getenv('RATELIMIT_RESPONSE_ACTION', '20/m')  # Response actions (kill process)
+RATELIMIT_ISOLATE = os.getenv('RATELIMIT_ISOLATE', '10/m')  # Critical actions (isolate host)
+RATELIMIT_ADMIN = os.getenv('RATELIMIT_ADMIN', '20/m')  # Admin operations
+RATELIMIT_PAGE_VIEW = os.getenv('RATELIMIT_PAGE_VIEW', '200/m')  # HTML page views
 
 
 
@@ -196,6 +233,11 @@ LOGGING = {
         'ingestion': {
             'handlers': ['console'],
             'level': 'DEBUG',  # Set to DEBUG for detailed logs
+            'propagate': False,
+        },
+        'ratelimit': {
+            'handlers': ['console'],
+            'level': 'WARNING',  # Log rate limit violations
             'propagate': False,
         },
     },

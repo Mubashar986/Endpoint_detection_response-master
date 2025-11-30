@@ -10,9 +10,9 @@ from django.contrib.auth.models import User
 from rest_framework.authtoken.models import Token
 
 def create_token():
-    username = "admin"
-    email = "admin@example.com"
-    password = "admin"
+    username = "Mubashar"
+    email = "mubashirmaitlo@gmail.com"
+    password = "1234"
 
     try:
         user = User.objects.get(username=username)

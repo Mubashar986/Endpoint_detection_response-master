@@ -21,9 +21,15 @@ from datetime import timedelta
 import pytz
 import json
 
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+
 from .models import TelemetryEvent
 from .detection_models import DetectionRule, Alert
 from .rbac_decorators import require_analyst_or_admin, can_toggle_rules, get_user_role, can_take_response_actions
+from .ratelimit_utils import ratelimit_with_logging
+from django.conf import settings
 
 # ========== UTILITY FUNCTIONS ==========
 
@@ -67,7 +73,10 @@ def calculate_time_ago(dt):
 
 # ========== API ENDPOINTS (JSON responses) ==========
 
-@require_http_methods(["GET"])
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+@ratelimit_with_logging(key='user', rate=settings.RATELIMIT_DASHBOARD_READ, method='GET')
 def stats_api(request):
     total_events = TelemetryEvent.objects.count()
     total_rules = DetectionRule.objects.count()
@@ -89,7 +98,10 @@ def stats_api(request):
         'detection_rate': f"{detection_rate:.2f}%"
     })
 
-@require_http_methods(["GET"])
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+@ratelimit_with_logging(key='user', rate=settings.RATELIMIT_DASHBOARD_READ, method='GET')
 def alerts_list_api(request):
     status = request.GET.get('status', 'UNRESOLVED')
     severity = request.GET.get('severity')
@@ -117,7 +129,10 @@ def alerts_list_api(request):
         })
     return JsonResponse({'count': len(alerts_data), 'alerts': alerts_data})
 
-@require_http_methods(["GET"])
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+@ratelimit_with_logging(key='user', rate=settings.RATELIMIT_DASHBOARD_READ, method='GET')
 def alert_detail_api(request, alert_id):
     try:
         alert = Alert.objects.get(alert_id=alert_id)
@@ -155,8 +170,11 @@ def alert_detail_api(request, alert_id):
 
 # ========== SOC ACTION ENDPOINTS ==========
 
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
 @require_analyst_or_admin
-@require_http_methods(["POST"])
+@ratelimit_with_logging(key='user', rate=settings.RATELIMIT_DASHBOARD_WRITE, method='POST')
 def alert_update_status(request, alert_id):
     try:
         alert = Alert.objects.get(alert_id=alert_id)
@@ -181,8 +199,11 @@ def alert_update_status(request, alert_id):
         'new_status': alert.alert_status
     })
 
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
 @require_analyst_or_admin
-@require_http_methods(["POST"])
+@ratelimit_with_logging(key='user', rate=settings.RATELIMIT_DASHBOARD_WRITE, method='POST')
 def alert_assign(request, alert_id):
     try:
         alert = Alert.objects.get(alert_id=alert_id)
@@ -199,7 +220,11 @@ def alert_assign(request, alert_id):
         'assigned_to': analyst
     })
 
-@require_http_methods(["POST"])
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+@require_analyst_or_admin # Assuming adding a note is also a response action
+@ratelimit_with_logging(key='user', rate=settings.RATELIMIT_DASHBOARD_WRITE, method='POST')
 def alert_add_note(request, alert_id):
     try:
         alert = Alert.objects.get(alert_id=alert_id)
@@ -217,8 +242,11 @@ def alert_add_note(request, alert_id):
         'note_added': note_text
     })
 
-@require_analyst_or_admin
-@require_http_methods(["POST"])
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+@require_analyst_or_admin  # Rule toggling requires analyst permissions
+@ratelimit_with_logging(key='user', rate=settings.RATELIMIT_ADMIN, method='POST')
 def rule_toggle(request, rule_id):
     try:
         rule = DetectionRule.objects.get(rule_id=rule_id)
@@ -232,7 +260,10 @@ def rule_toggle(request, rule_id):
         'enabled': rule.enabled
     })
 
-@require_http_methods(["GET"])
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+@ratelimit_with_logging(key='user', rate=settings.RATELIMIT_DASHBOARD_READ, method='GET')
 def alert_timeline(request, alert_id):
     try:
         alert = Alert.objects.get(alert_id=alert_id)

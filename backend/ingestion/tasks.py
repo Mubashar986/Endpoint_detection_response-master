@@ -26,26 +26,26 @@ def telemetry_ingest(data):
         if event.event_type == 'process':
             cmd = event.raw_data.get('process', {}).get('command_line', '')
             if 'powershell' in cmd.lower():
-                logger.warning(f"🔵 POWERSHELL DETECTED: {event.event_id}")
+                logger.warning(f" POWERSHELL DETECTED: {event.event_id}")
                 logger.warning(f"   Command: {cmd}")
        
         
-        logger.info(f"✅ Saved {event.event_type} event {event.event_id}")
+        logger.info(f" Saved {event.event_type} event {event.event_id}")
         
         # Step 2: NEW - Run rule-based detection
         try:
             alerts = DetectionEngine.evaluate_event(event.event_id)
             
             if alerts:
-                logger.warning(f"🚨 Rule-based detection: {len(alerts)} alerts created")
+                logger.warning(f" Rule-based detection: {len(alerts)} alerts created")
                 for alert in alerts:
                     logger.warning(f"   - {alert.severity}: {alert.rule_name}")
             else:
-                logger.debug(f"✅ No threats detected for event {event.event_id}")
+                logger.debug(f" No threats detected for event {event.event_id}")
         
         except Exception as detection_error:
             # Don't fail entire task if detection fails
-            logger.error(f"❌ Detection error: {detection_error}")
+            logger.error(f" Detection error: {detection_error}")
             # Continue processing (event still saved)
         
         return {
@@ -56,5 +56,5 @@ def telemetry_ingest(data):
         }
         
     except Exception as e:
-        logger.error(f"❌ Failed to process telemetry: {str(e)}")
+        logger.error(f" Failed to process telemetry: {str(e)}")
         raise  # Re-raise to trigger Celery retry

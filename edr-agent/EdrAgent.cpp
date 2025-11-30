@@ -283,7 +283,7 @@ DWORD ProcessEvent(EVT_HANDLE hEvent) {
                 
                 // 'const size_t' defines a constant integer that cannot be changed.
                 // We set the batch size to 50 as requested for optimization testing.
-                static const size_t BATCH_SIZE = 100;
+                static const size_t BATCH_SIZE = 10;
                 
                 // 'push_back' adds the new event to the end of the vector (like list.append() in Python).
                 eventBuffer.push_back(djangoEvent);

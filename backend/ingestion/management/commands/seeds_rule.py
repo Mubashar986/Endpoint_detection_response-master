@@ -274,6 +274,36 @@ class Command(BaseCommand):
                 ],
                 'author': 'security-team',
                 'deployment_status': 'PRODUCTION'
+            },
+
+            # ========== RULE 7: Test Malware Simulation ==========
+            {
+                'rule_id': 'RULE-TEST-001',
+                'name': 'Test Malware Simulation Detected',
+                'description': 'Detects the EDR test simulation script for verification purposes',
+                'enabled': True,
+                'severity': 'HIGH',
+                'confidence': 1.0,
+                'mitre_tactics': ['TA0002'],
+                'mitre_techniques': ['T1059.006'],
+                'mitre_tactic_names': ['Execution'],
+                'mitre_technique_names': ['Python'],
+                'tags': ['test', 'simulation', 'verification'],
+                'detection_logic': {
+                    'entity_type': 'process',
+                    'conditions': [
+                        {
+                            'field': 'process.command_line',
+                            'operator': 'contains',
+                            'value': 'test_malware_simulation',
+                            'case_sensitive': False
+                        }
+                    ],
+                    'logic': 'AND'
+                },
+                'exceptions': [],
+                'author': 'admin',
+                'deployment_status': 'PRODUCTION'
             }
         ]
         

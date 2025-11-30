@@ -341,6 +341,12 @@ class RuleEvaluator:
         condition_results = []
         
         for condition in conditions:
+            # DEBUG: Log what we are checking
+            if self.event.event_type == 'process':
+                cmd = self.event.raw_data.get('process', {}).get('command_line', 'N/A')
+                with open('c:\\Endpoint_detection_response-master\\debug_rules.log', 'a', encoding='utf-8') as f:
+                    f.write(f"[{datetime.now()}] Checking Rule {self.rule.rule_id} against CMD: {cmd}\n")
+
             result = ConditionEvaluator.evaluate(self.event, condition)
             condition_results.append(result)
             

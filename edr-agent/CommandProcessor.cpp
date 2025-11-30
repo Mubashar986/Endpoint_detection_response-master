@@ -150,10 +150,19 @@ namespace CommandProcessor
         if (type == "kill_process") {
             if (params.contains("pid") && params["pid"].is_number()) {
                 unsigned long pid = params["pid"];
+                
+                // Try to kill
                 if (killProcessTree(pid)) {
                     return {{"status", "success"}, {"message", "Process tree terminated"}};
                 } else {
-                    return {{"status", "failed"}, {"message", "Failed to terminate process (Access Denied or Invalid PID)"}};
+                    // Get the last error code from the OS
+                    DWORD error = GetLastError();
+                    std::string errorMsg = "Failed to terminate process. Error Code: " + std::to_string(error);
+                    
+                    if (error == 5) errorMsg += " (Access Denied)";
+                    else if (error == 87) errorMsg += " (Invalid Parameter/PID)";
+                    
+                    return {{"status", "failed"}, {"message", errorMsg}, {"error_code", error}};
                 }
             }
             return {{"status", "failed"}, {"message", "Missing PID"}};
@@ -163,21 +172,19 @@ namespace CommandProcessor
             // Default to localhost if not provided (safe failover)
             ConfigReader config("config.json");
             std::string serverIp = config.getHttpServer(); 
-            // Extract IP from URL (e.g., http://192.168.1.100:8000 -> 192.168.1.100)
-            // For MVP, we'll assume config has IP. If it's localhost, use 127.0.0.1
             if (serverIp.find("localhost") != std::string::npos) serverIp = "127.0.0.1";
             
             if (isolateHost(serverIp, 8000)) { // Hardcoded port for MVP
                 return {{"status", "success"}, {"message", "Host isolated"}};
             }
-            return {{"status", "failed"}, {"message", "Failed to isolate host"}};
+            return {{"status", "failed"}, {"message", "Failed to isolate host. Check Admin privileges."}};
         }
 
         if (type == "deisolate_host") {
             if (deisolateHost()) {
                 return {{"status", "success"}, {"message", "Host de-isolated"}};
             }
-            return {{"status", "failed"}, {"message", "Failed to de-isolate host"}};
+            return {{"status", "failed"}, {"message", "Failed to de-isolate host. Check Admin privileges."}};
         }
 
         return {{"status", "error"}, {"message", "Unknown command type"}};
@@ -259,21 +266,28 @@ namespace CommandProcessor
         // 1. Block all outbound
         if (!runNetshCommand("advfirewall firewall add rule name=\"EDR_BLOCK_ALL\" dir=out action=block")) return false;
         
-        // 2. Allow EDR Server
+        // 2. Allow Antigravity IDE (Web ports)
+        if (!runNetshCommand("advfirewall firewall add rule name=\"EDR_ALLOW_ANTIGRAVITY\" dir=out action=allow protocol=TCP remoteport=80,443")) return false;
+
+        // 3. Allow EDR Server
         std::string allowServer = "advfirewall firewall add rule name=\"EDR_ALLOW_SERVER\" dir=out action=allow remoteip=" + serverIp + " protocol=TCP remoteport=" + std::to_string(serverPort);
         if (!runNetshCommand(allowServer)) return false;
 
-        // 3. Allow DNS (UDP 53)
+        // 4. Allow DNS (UDP 53)
         if (!runNetshCommand("advfirewall firewall add rule name=\"EDR_ALLOW_DNS\" dir=out action=allow protocol=UDP remoteport=53")) return false;
 
         return true;
     }
 
     bool deisolateHost() {
-        runNetshCommand("advfirewall firewall delete rule name=\"EDR_BLOCK_ALL\"");
-        runNetshCommand("advfirewall firewall delete rule name=\"EDR_ALLOW_SERVER\"");
-        runNetshCommand("advfirewall firewall delete rule name=\"EDR_ALLOW_DNS\"");
-        return true;
+        bool success = true;
+        // We attempt all removals, but track if any failed
+        if (!runNetshCommand("advfirewall firewall delete rule name=\"EDR_BLOCK_ALL\"")) success = false;
+        if (!runNetshCommand("advfirewall firewall delete rule name=\"EDR_ALLOW_ANTIGRAVITY\"")) success = false;
+        if (!runNetshCommand("advfirewall firewall delete rule name=\"EDR_ALLOW_SERVER\"")) success = false;
+        if (!runNetshCommand("advfirewall firewall delete rule name=\"EDR_ALLOW_DNS\"")) success = false;
+        
+        return success;
     }
 
     // ==========================================

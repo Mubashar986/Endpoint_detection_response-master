@@ -2,7 +2,7 @@
   "http_server": "localhost",
   "http_port": 8000,
   "api_path": "/api/v1/telemetry/",
-  "auth_token": "ba76c2dca3772eba25e32d70288dced3bcb9cbc0",
+  "auth_token": "PLACEHOLDER_USE_ENV_VAR_EDR_AUTH_TOKEN",
   "uri": "ws://192.168.63.137:8000/ws/agent/",
   "event_processor": {
     "source": [

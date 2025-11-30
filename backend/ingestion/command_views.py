@@ -9,6 +9,8 @@ import json
 
 from .models_mongo import PendingCommand, ResponseAction
 from .rbac_decorators import require_analyst_or_admin
+from .ratelimit_utils import ratelimit_with_logging
+from django.conf import settings
 
 # ==========================================
 # AGENT APIs (Polling & Reporting)
@@ -16,6 +18,7 @@ from .rbac_decorators import require_analyst_or_admin
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+@ratelimit_with_logging(key='header:HTTP_X_AGENT_TOKEN', rate='300/m', method='GET')
 def poll_commands(request):
     """
     Agent polls this endpoint to get pending commands.
@@ -57,6 +60,7 @@ def poll_commands(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@ratelimit_with_logging(key='header:HTTP_X_AGENT_TOKEN', rate='50/m', method='POST')
 def report_command_result(request, command_id):
     """
     Agent reports the result of a command execution.
@@ -81,17 +85,41 @@ def report_command_result(request, command_id):
         action.status = command.status
         action.result_summary = str(result_data.get('message', ''))
         action.save()
+    
+    # AUTO-RESOLVE ALERT if action succeeded
+    if result_data.get('status') == 'success':
+        # Get alert_id from command parameters (if provided)
+        alert_id = command.parameters.get('alert_id')
+        if alert_id:
+            try:
+                from .detection_models import Alert
+                import logging
+                logger = logging.getLogger(__name__)
+                
+                alert = Alert.objects.get(alert_id=alert_id)
+                
+                # Auto-resolve  the alert
+                analyst = command.issued_by
+                action_type = command.command_type.replace('_', ' ').title()
+                note = f"Auto-resolved: {action_type} executed successfully. {result_data.get('message', '')}"
+                
+                alert.mark_resolved(analyst, note)
+                logger.info(f"Auto-resolved alert {alert_id} after successful {command.command_type}")
+            except Exception as e:
+                # Don't fail if auto-resolve fails
+                pass
         
     return Response({'status': 'received'})
 
 # ==========================================
-# DASHBOARD APIs (Triggers)
+# DASHBOARD AP APIs (Triggers)
 # ==========================================
 
-@require_analyst_or_admin
 @api_view(['POST'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
+@require_analyst_or_admin
+@ratelimit_with_logging(key='user', rate=settings.RATELIMIT_RESPONSE_ACTION, method='POST')
 def trigger_kill_process(request):
     """
     UI triggers a kill process action.
@@ -100,6 +128,7 @@ def trigger_kill_process(request):
         
     agent_id = request.data.get('agent_id')
     pid = request.data.get('pid')
+    alert_id = request.data.get('alert_id')  # Optional: for auto-resolve
     
     if not agent_id or not pid:
         return Response({'error': 'agent_id and pid required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -108,7 +137,7 @@ def trigger_kill_process(request):
     command = PendingCommand(
         agent_id=agent_id,
         command_type='kill_process',
-        parameters={'pid': int(pid)},
+        parameters={'pid': int(pid), 'alert_id': alert_id},  # Store alert_id
         status='new',
         issued_by=request.user.email or request.user.username,
         expires_at=timezone.now() + timedelta(minutes=5)
@@ -131,10 +160,11 @@ def trigger_kill_process(request):
         'message': 'Kill command queued successfully'
     })
 
-@require_analyst_or_admin
 @api_view(['POST'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
+@require_analyst_or_admin
+@ratelimit_with_logging(key='user', rate=settings.RATELIMIT_ISOLATE, method='POST')
 def trigger_isolate_host(request):
     """
     UI triggers a host isolation action.
@@ -173,10 +203,11 @@ def trigger_isolate_host(request):
         'message': 'Isolation command queued successfully'
     })
 
-@require_analyst_or_admin
 @api_view(['POST'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
+@require_analyst_or_admin
+@ratelimit_with_logging(key='user', rate=settings.RATELIMIT_ISOLATE, method='POST')
 def trigger_deisolate_host(request):
     """
     UI triggers a host de-isolation action.

@@ -4,6 +4,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from .serializers import TelemetrySerializer
 from .tasks import telemetry_ingest
+from .ratelimit_utils import ratelimit_with_logging
+from django.conf import settings
 import logging
 from datetime import datetime
 logger = logging.getLogger(__name__)
@@ -11,6 +13,8 @@ logger = logging.getLogger(__name__)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@ratelimit_with_logging(key='header:HTTP_X_AGENT_TOKEN', rate=settings.RATELIMIT_TELEMETRY, method='POST', group='telemetry_sustained')  # Sustained limit
+@ratelimit_with_logging(key='header:HTTP_X_AGENT_TOKEN', rate='200/10s', method='POST', group='telemetry_burst')  # Burst protection
 def telemetry_endpoint(request):
     """
     Ingest telemetry events. Supports both single event (dict) and batch events (list).
@@ -61,17 +65,4 @@ def telemetry_endpoint(request):
             'status': 'error',
             'message': 'Validation failed',
             'errors': serializer.errors
-        }, status=status.HTTP_400_BAD_REQUEST)       
-        
-        
-        
-    
-                
-             
-                
-                
-                
-                
-                
-    
-
+        }, status=status.HTTP_400_BAD_REQUEST)

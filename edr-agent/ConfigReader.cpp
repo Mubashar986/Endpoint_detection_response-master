@@ -140,12 +140,50 @@ std::string ConfigReader::getApiPath()
 
 std::string ConfigReader::getAuthToken()
 {
-    if (jsonObject.find("auth_token") != jsonObject.end()) {
-        return jsonObject["auth_token"];
-    } else {
-        std::cerr << "WARNING: No auth_token found in config!" << std::endl;
-        return "";
+    // 1. Priority: Check Environment Variable
+    const char* envToken = std::getenv("EDR_AUTH_TOKEN");
+    if (envToken != nullptr) {
+        std::string token(envToken);
+        if (!token.empty()) {
+            std::cout << "[ConfigReader] Using Auth Token from Environment Variable" << std::endl;
+            return token;
+        }
     }
+
+    // 2. Priority: Check auth.secret file (Secure local persistence)
+    std::filesystem::path secretPath = configFilePath.parent_path() / "auth.secret";
+    if (std::filesystem::exists(secretPath)) {
+        std::ifstream secretFile(secretPath);
+        std::string token;
+        if (std::getline(secretFile, token)) {
+            // Trim whitespace
+            token.erase(token.find_last_not_of(" \n\r\t") + 1);
+            if (!token.empty()) {
+                std::cout << "[ConfigReader] Using Auth Token from auth.secret file" << std::endl;
+                return token;
+            }
+        }
+    }
+
+    // 3. Fallback: Check config.json (Legacy/Dev)
+    if (jsonObject.find("auth_token") != jsonObject.end()) {
+        std::string token = jsonObject["auth_token"];
+        
+        // REJECT PLACEHOLDER
+        if (token == "PLACEHOLDER_USE_ENV_VAR_EDR_AUTH_TOKEN") {
+             std::cerr << "[ConfigReader] ERROR: Config contains placeholder token. Please set EDR_AUTH_TOKEN environment variable." << std::endl;
+             return "";
+        }
+
+        if (!token.empty()) {
+            std::cerr << "[ConfigReader] WARNING: Using hardcoded token from config.json. This is insecure." << std::endl;
+            return token;
+        }
+    }
+
+    // 3. Failure
+    std::cerr << "[ConfigReader] CRITICAL ERROR: No Auth Token found in Environment (EDR_AUTH_TOKEN) or config.json" << std::endl;
+    return "";
 }
 
 // ============================================
