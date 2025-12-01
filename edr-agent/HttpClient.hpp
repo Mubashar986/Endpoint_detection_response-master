@@ -6,7 +6,7 @@
 #include <winhttp.h>
 #include <vector>
 #include "nlohmann/json.hpp"
-#include "SimpleGzip.hpp"
+#include "SimpleZstd.hpp"
 
 #pragma comment(lib, "winhttp.lib")
 
@@ -17,7 +17,6 @@ private:
     std::wstring path;
     std::wstring authToken;
     std::vector<std::pair<std::wstring, std::wstring>> customHeaders;
-    
 public:
     HttpClient(); // Default constructor
     HttpClient(const std::string& serverHost, int serverPort, 
@@ -32,9 +31,18 @@ public:
     bool sendTelemetryBatch(const std::vector<nlohmann::json>& events);
     
 private:
+    // Persistent Connection Handles
+    HINTERNET hSession = NULL;
+    HINTERNET hConnect = NULL;
+    
+    bool connect();
+    void disconnect();
+    bool ensureConnection();
+
     bool sendHttpPost(const std::string& jsonData);
-    bool sendCompressedHttpPost(const std::vector<BYTE>& compressedData); // New helper
-    bool compressData(const std::string& data, std::vector<BYTE>& compressedData); // New helper
+    bool compressData(const std::string& data, std::vector<BYTE>& compressedData);
+    bool sendCompressedHttpPost(const std::vector<BYTE>& compressedData);
+    
     std::wstring stringToWstring(const std::string& str);
 };
 

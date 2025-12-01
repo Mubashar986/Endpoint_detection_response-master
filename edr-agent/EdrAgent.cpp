@@ -38,6 +38,8 @@ HttpClient* g_httpClient = nullptr;                 // Active now
 // Main Function
 // ============================================
 int main() {
+    std::cout << "===============  fake event sent to the serv`=========================" << std::endl;
+    
     std::cout << "========================================" << std::endl;
     std::cout << "  EDR Agent v1.0" << std::endl;
     std::cout << "  HTTP Mode (WebSocket added but fot the future )" << std::endl;
@@ -160,6 +162,48 @@ int main() {
         std::cout << "\nPress any key to stop monitoring..." << std::endl;
         std::cout << "========================================\n" << std::endl;
 
+
+        std::cout << "===================fake event to the server =====================\n" << std::endl;
+
+
+        // ========== TEST EVENT INJECTION - REMOVE AFTER DEBUGGING ==========
+        std::cout << "\n[TEST] Injecting fake event to verify pipeline..." << std::endl;
+        try {
+            nlohmann::json testEvent;
+            testEvent["agent_id"] = EventConverter::getHostname();
+            testEvent["event_id"] = "test-" + std::to_string(std::time(nullptr));
+            testEvent["event_type"] = "process";
+            testEvent["severity"] = "info";
+            testEvent["timestamp"] = std::time(nullptr);
+            testEvent["version"] = "1.0";
+            testEvent["host"] = {
+                {"hostname", EventConverter::getHostname()},
+                {"os", "Windows"}
+            };
+            testEvent["process"] = {
+                {"name", "TEST_FAKE_PROCESS.exe"},
+                {"pid", 99999},
+                {"command_line", "C:\\TEST\\fake.exe --test"},
+                {"user", "test_user"},
+                {"parent_image", "C:\\Windows\\explorer.exe"},
+                {"action", "create"}
+            };
+            
+            std::vector<nlohmann::json> testBatch = { testEvent };
+            if (g_httpClient->sendTelemetryBatch(testBatch)) {
+                std::cout << "[TEST] ✅ Fake event sent successfully!" << std::endl;
+            } else {
+                std::cerr << "[TEST] ❌ Fake event failed to send!" << std::endl;
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "[TEST] Exception: " << e.what() << std::endl;
+        }
+        std::cout << "[TEST] Pipeline test complete. Resuming normal monitoring...\n" << std::endl;
+        // ========== END TEST EVENT INJECTION ==========
+         
+                std::cout << "=========== facke sent ot he =============================\n" << std::endl;
+
+
         // Main event loop
         while (!_kbhit()) {
             Sleep(100); // Sleep 100ms
@@ -278,33 +322,22 @@ DWORD ProcessEvent(EVT_HANDLE hEvent) {
                 // BATCHING LOGIC (Optimization Phase 1)
                 // ==================================================================================
                 // We use 'static' here so these variables persist across function calls.
-                // If they weren't static, 'eventBuffer' would be re-created empty every time ProcessEvent runs.
                 static std::vector<nlohmann::json> eventBuffer; 
                 
-                // 'const size_t' defines a constant integer that cannot be changed.
-                // We set the batch size to 50 as requested for optimization testing.
-                static const size_t BATCH_SIZE = 10;
+                // TEMPORARY: Set to 1 for debugging
+                static const size_t BATCH_SIZE = 100; 
                 
-                // 'push_back' adds the new event to the end of the vector (like list.append() in Python).
                 eventBuffer.push_back(djangoEvent);
                 std::cout << "  [Buffer] Added event. Size: " << eventBuffer.size() << "/" << BATCH_SIZE << std::endl;
                 
-                // Check if our "carton of eggs" is full
                 if (eventBuffer.size() >= BATCH_SIZE) {
                     std::cout << "  [Batch] Sending " << eventBuffer.size() << " events..." << std::endl;
                     
-                    // Send the whole vector at once!
-                    // This reduces network overhead by making 1 request instead of 10.
                     if (g_httpClient->sendTelemetryBatch(eventBuffer)) {
                         std::cout << "✅ Batch sent successfully" << std::endl;
-                        
-                        // Clear the buffer so it's ready for the next batch of events.
                         eventBuffer.clear();
                     } else {
                         std::cerr << "❌ Failed to send batch" << std::endl;
-                        
-                        // If sending fails, we clear the buffer to prevent memory leaks (growing forever).
-                        // In a real enterprise EDR, we might save this to a file (Disk Buffering) to retry later.
                         eventBuffer.clear(); 
                     }
                 }

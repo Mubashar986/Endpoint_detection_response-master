@@ -40,7 +40,7 @@ std::string EventConverter::generateEventId() {
     
     return ss.str();
 }
-
+// more sysmon process will be add here later
 std::string EventConverter::mapSysmonToEventType(int eventId) {
     switch (eventId) {
         case 1:  return "process";
@@ -51,7 +51,9 @@ std::string EventConverter::mapSysmonToEventType(int eventId) {
         default: return "unknown";
     }
 }
-
+// here we will add the different severity level and we have to different severity level 
+// we will addd here different condition 
+// to do for the later 
 std::string EventConverter::determineSeverity(int eventId) {
     return "info";
 }
@@ -115,10 +117,12 @@ nlohmann::json EventConverter::sysmonEventToDjangoFormat(const nlohmann::json& s
         djangoEvent["severity"] = determineSeverity(eventId);
         djangoEvent["version"] = "1.0";
         
+
+        // here we may need to add the different os_version here 
         djangoEvent["host"] = {
             {"hostname", system.value("Computer", "")},
             {"os", "Windows"},
-            {"os_version", "10"}
+            {"os_version", "11"}
         };
         
         if (eventType == "process" && eventId == 1) {
