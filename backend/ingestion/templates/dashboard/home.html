@@ -174,11 +174,93 @@
         border-left-width: 6px;
         background: #f8f9fa;
     }
+
+    /* ========== P0-004: ENHANCED FLOATING ACTION BAR ========== */
+    #bulkActionBar {
+        background: rgba(255, 255, 255, 0.95) !important;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #2d3748 !important;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2) !important;
+        padding: 15px 30px !important;
+        border-radius: 20px !important;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    #bulkActionBar .btn {
+        transition: all 0.2s ease;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+
+    #bulkActionBar .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    /* ========== P0-004: ENHANCED MODAL ========== */
+    .modal-content {
+        border: none;
+        border-radius: 20px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .modal-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-bottom: none;
+        padding: 20px 30px;
+    }
+
+    .modal-body {
+        padding: 30px;
+        background: #f8f9fa;
+    }
+
+    .modal-footer {
+        background: #f8f9fa;
+        border-top: none;
+        padding: 20px 30px;
+    }
+
+    /* ========== TOAST NOTIFICATIONS ========== */
+    .toast-container {
+        z-index: 1060;
+    }
+
+    .toast-custom {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+        overflow: hidden;
+        background: white;
+    }
+
+    .toast-header-custom {
+        color: white;
+        border: none;
+        padding: 12px 20px;
+    }
+
+    .toast-body-custom {
+        padding: 15px 20px;
+        font-size: 14px;
+        color: #4a5568;
+        font-weight: 500;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid">
+
+    <!-- TOAST CONTAINER -->
+    <div class="toast-container position-fixed top-0 end-0 p-3">
+        <!-- Toasts will be injected here -->
+    </div>
 
     <!-- ========== HEADER WITH REFRESH ========== -->
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -475,46 +557,54 @@
 
 <!-- P0-004: FLOATING ACTION BAR -->
 <div id="bulkActionBar"
-    style="position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 20px 40px; border-radius: 50px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); z-index: 1050; transition: bottom 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55); display: none;">
-    <span id="selectedCount" class="fw-bold">0</span> alert(s) selected
-    <button class="btn btn-light btn-sm ms-3 rounded-pill" onclick="showBulkModal('resolve')"><i
-            class="fas fa-check"></i> Resolve</button>
-    <button class="btn btn-warning btn-sm ms-2 rounded-pill" onclick="showBulkModal('false_positive')"><i
-            class="fas fa-times-circle"></i> False Positive</button>
-    <button class="btn btn-info btn-sm ms-2 rounded-pill" onclick="showBulkModal('assign')"><i class="fas fa-user"></i>
-        Assign</button>
-    <button class="btn btn-outline-light btn-sm ms-3 rounded-pill" onclick="clearAllSelections()"><i
-            class="fas fa-times"></i> Clear</button>
+    style="position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%); z-index: 1050; transition: bottom 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55); display: none;">
+    <div class="d-flex align-items-center">
+        <div class="bg-dark text-white rounded-pill px-3 py-1 me-3 shadow-sm">
+            <span id="selectedCount" class="fw-bold">0</span> selected
+        </div>
+        <button class="btn btn-success rounded-pill shadow-sm" onclick="showBulkModal('resolve')">
+            <i class="fas fa-check me-1"></i> Resolve
+        </button>
+        <button class="btn btn-warning rounded-pill shadow-sm text-dark ms-2" onclick="showBulkModal('false_positive')">
+            <i class="fas fa-times-circle me-1"></i> False Positive
+        </button>
+        <button class="btn btn-info rounded-pill shadow-sm text-white ms-2" onclick="showBulkModal('assign')">
+            <i class="fas fa-user me-1"></i> Assign
+        </button>
+        <button class="btn btn-light rounded-pill shadow-sm ms-3 text-danger" onclick="clearAllSelections()">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
 </div>
 
 <!-- P0-004: BULK ACTION MODAL -->
 <div class="modal fade" id="bulkActionModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content" style="border-radius: 15px; border: none;">
-            <div class="modal-header"
-                style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 15px 15px 0 0;">
-                <h5 class="modal-title" id="bulkActionTitle">Bulk Action</h5>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" id="bulkActionTitle">Bulk Action</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div id="bulkProcessing" style="display: none; text-align: center;">
-                    <div class="spinner-border text-primary" role="status"></div>
-                    <p class="mt-2">Processing...</p>
+                <div id="bulkProcessing" style="display: none; text-align: center; padding: 20px;">
+                    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+                    <p class="mt-3 text-muted fw-bold">Processing your request...</p>
                 </div>
                 <div id="bulkInputContainer">
-                    <p id="bulkActionDescription"></p>
+                    <p id="bulkActionDescription" class="text-muted mb-4"></p>
                     <div id="bulkInputGroup" class="mb-3">
-                        <label for="bulkInput" class="form-label" id="bulkInputLabel"></label>
-                        <input type="text" class="form-control" id="bulkInput" style="border-radius: 10px;">
+                        <label for="bulkInput" class="form-label fw-bold text-dark" id="bulkInputLabel"></label>
+                        <input type="text" class="form-control form-control-lg" id="bulkInput"
+                            style="border-radius: 10px; background: white;">
                         <div class="invalid-feedback">This field is required.</div>
                     </div>
                 </div>
             </div>
-            <div class="modal-footer" style="border: none;">
-                <button type="button" class="btn btn-secondary rounded-pill px-4"
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light rounded-pill px-4 fw-bold"
                     data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary rounded-pill px-4" id="bulkConfirmBtn"
-                    onclick="performBulkAction()">Confirm</button>
+                <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm" id="bulkConfirmBtn"
+                    onclick="performBulkAction()">Confirm Action</button>
             </div>
         </div>
     </div>
@@ -660,6 +750,42 @@
         modal.show();
     }
 
+    // ========== CUSTOM TOAST NOTIFICATION ==========
+    function showToast(message, type = 'success') {
+        const container = document.querySelector('.toast-container');
+        const toastEl = document.createElement('div');
+
+        // Determine colors based on type
+        let headerBg = 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)'; // Success
+        let icon = 'fas fa-check-circle';
+
+        if (type === 'error') {
+            headerBg = 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)';
+            icon = 'fas fa-exclamation-circle';
+        }
+
+        toastEl.className = 'toast toast-custom show';
+        toastEl.role = 'alert';
+        toastEl.innerHTML = `
+        <div class="toast-header toast-header-custom" style="background: ${headerBg};">
+            <i class="${icon} me-2"></i>
+            <strong class="me-auto">${type === 'success' ? 'Success' : 'Error'}</strong>
+            <button type="button" class="btn-close btn-close-white" onclick="this.closest('.toast').remove()"></button>
+        </div>
+        <div class="toast-body toast-body-custom">
+            ${message}
+        </div>
+    `;
+
+        container.appendChild(toastEl);
+
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            toastEl.classList.remove('show');
+            setTimeout(() => toastEl.remove(), 300);
+        }, 5000);
+    }
+
     function performBulkAction() {
         const selected = Array.from(document.querySelectorAll('.alert-checkbox:checked')).map(cb => cb.value);
         const bulkInput = document.getElementById('bulkInput');
@@ -698,13 +824,21 @@
             })
             .then(result => {
                 bootstrap.Modal.getInstance(document.getElementById('bulkActionModal')).hide();
-                alert(`Success! ${result.success_count} alert(s) processed.${result.errors.length > 0 ? '\n\nErrors:\n' + result.errors.join('\n') : ''}`);
-                location.reload();
+
+                // Show custom toast instead of alert
+                if (result.errors && result.errors.length > 0) {
+                    showToast(`Processed ${result.success_count} alerts, but encountered errors: ${result.errors.join(', ')}`, 'error');
+                } else {
+                    showToast(`Successfully processed ${result.success_count} alert(s)!`, 'success');
+                }
+
+                // Reload after a short delay to let user see the toast
+                setTimeout(() => location.reload(), 2000);
             })
             .catch(error => {
                 document.getElementById('bulkProcessing').style.display = 'none';
                 document.getElementById('bulkInputContainer').style.display = 'block';
-                alert('Error: ' + error.message);
+                showToast('Error: ' + error.message, 'error');
             });
     }
 
