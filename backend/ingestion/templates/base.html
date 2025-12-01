@@ -166,6 +166,21 @@
             </a>
           </li>
 
+          <!-- Global Search (P0-013) -->
+          <li class="nav-item ms-4 me-3" style="min-width: 300px;">
+            <div class="position-relative">
+              <input type="text" id="globalSearch" class="form-control form-control-sm" placeholder="🔍 Search (Alt+K)"
+                autocomplete="off"
+                style="border-radius: 20px; padding: 8px 18px; border: 2px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.15); color: white;">
+
+              <!-- Search Results Dropdown -->
+              <div id="searchResults" class="position-absolute bg-white shadow-lg"
+                style="width: 100%; max-height: 400px; overflow-y: auto; display: none; top: 110%; border-radius: 12px; z-index: 9999; border: 1px solid #ddd;">
+                <!-- Results populated by JavaScript -->
+              </div>
+            </div>
+          </li>
+
           <!-- User Menu -->
           {% if user.is_authenticated %}
           <li class="nav-item dropdown ms-3">
@@ -272,15 +287,164 @@
 
       // Only refresh if:
       // 1. No form has been modified, AND
-      // 2. User is not currently typing in a form field
+      // 2. User is not currently typing
       if (!formModified && !isTyping) {
+        console.log('\ud83d\udd04 Auto-refreshing page...');
         location.reload();
       } else {
-        // User is busy - reschedule for another 30 seconds
-        console.log('⏸️ Auto-refresh paused (user is interacting with form)');
+        console.log('\u23f8\ufe0f Auto-refresh paused (user is interacting with form)');
+        // Reschedule another check in 30 seconds
         scheduleRefresh();
       }
     }
+
+    // ========== GLOBAL SEARCH (P0-013) ==========
+
+    /**
+     * Global omnisearch functionality
+     * Allows analysts to quickly jump to alerts or endpoints
+     */
+    (function () {
+      const searchInput = document.getElementById('globalSearch');
+      const searchResults = document.getElementById('searchResults');
+      let searchTimeout;
+
+      if (!searchInput || !searchResults) return; // Exit if elements not found
+
+      /**
+       * Keyboard shortcut: Alt+K focuses search
+       * Industry standard: Cmd/Ctrl+K used by Slack, Discord, GitHub
+       */
+      document.addEventListener('keydown', (e) => {
+        if (e.altKey && e.key.toLowerCase() === 'k') {
+          e.preventDefault();
+          searchInput.focus();
+          searchInput.select();
+        }
+
+        // Escape closes search results
+        if (e.key === 'Escape' && searchResults.style.display === 'block') {
+          searchResults.style.display = 'none';
+        }
+      });
+
+      /**
+       * Debounced search on input
+       * Waits 300ms after user stops typing before fetching
+       */
+      searchInput.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        const query = e.target.value.trim();
+
+        // Hide results if query too short
+        if (query.length < 2) {
+          searchResults.style.display = 'none';
+          return;
+        }
+
+        // Show loading state
+        searchResults.innerHTML = '<div class="p-3 text-muted"><i class="fas fa-spinner fa-spin"></i> Searching...</div>';
+        searchResults.style.display = 'block';
+
+        // Debounce: wait 300ms before searching
+        searchTimeout = setTimeout(() => {
+          performSearch(query);
+        }, 300);
+      });
+
+      /**
+       * Fetch search results from backend
+       */
+      function performSearch(query) {
+        fetch(`/api/v1/search/?q=${encodeURIComponent(query)}`, {
+          credentials: 'include'  // Send session cookies for authentication
+        })
+          .then(response => {
+            if (!response.ok) throw new Error('Search failed');
+            return response.json();
+          })
+          .then(data => {
+            displayResults(data, query);
+          })
+          .catch(error => {
+            console.error('Search error:', error);
+            searchResults.innerHTML = '<div class="p-3 text-danger"><i class="fas fa-exclamation-circle"></i> Search failed</div>';
+          });
+      }
+
+      /**
+       * Display search results in dropdown
+       */
+      function displayResults(data, query) {
+        let html = '';
+        let totalResults = 0;
+
+        // Display Alerts
+        if (data.alerts && data.alerts.length > 0) {
+          html += '<div class="p-2 bg-light border-bottom"><strong><i class="fas fa-exclamation-circle"></i> Alerts</strong></div>';
+          data.alerts.forEach(alert => {
+            const severityClass = `badge-${alert.severity.toLowerCase()}`;
+            html += `
+              <a href="/dashboard/alerts/${alert.alert_id}/" class="d-block p-2 text-decoration-none text-dark hover-bg-light" style="border-bottom: 1px solid #f0f0f0;">
+                <span class="badge ${severityClass}">${alert.severity}</span>
+                <strong>${alert.alert_id}</strong> - ${alert.rule_name}
+                <br><small class="text-muted">${alert.endpoint_id}</small>
+              </a>
+            `;
+            totalResults++;
+          });
+        }
+
+        // Display Endpoints
+        if (data.endpoints && data.endpoints.length > 0) {
+          html += '<div class="p-2 bg-light border-bottom mt-2"><strong><i class="fas fa-desktop"></i> Endpoints</strong></div>';
+          data.endpoints.forEach(ep => {
+            html += `
+              <a href="/dashboard/events/?endpoint=${encodeURIComponent(ep)}" class="d-block p-2 text-decoration-none text-dark hover-bg-light" style="border-bottom: 1px solid #f0f0f0;">
+                <i class="fas fa-desktop text-primary"></i> ${ep}
+              </a>
+            `;
+            totalResults++;
+          });
+        }
+
+        // No results
+        if (totalResults === 0) {
+          html = `<div class="p-3 text-muted text-center">
+            <i class="fas fa-search"></i><br>
+            No results found for "<strong>${escapeHtml(query)}</strong>"
+          </div>`;
+        }
+
+        searchResults.innerHTML = html;
+        searchResults.style.display = 'block';
+      }
+
+      /**
+       * Hide results when clicking outside
+       */
+      document.addEventListener('click', (e) => {
+        if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+          searchResults.style.display = 'none';
+        }
+      });
+
+      /**
+       * Helper: Escape HTML to prevent XSS
+       */
+      function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // Add hover style dynamically
+      const style = document.createElement('style');
+      style.innerHTML = '.hover-bg-light:hover { background-color: #f8f9fa !important; }';
+      document.head.appendChild(style);
+
+      console.log('\u2705 Global search initialized (Alt+K)');
+    })();
   </script>
 
   {% block extra_js %}{% endblock %}

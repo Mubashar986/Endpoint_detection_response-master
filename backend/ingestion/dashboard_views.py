@@ -402,3 +402,119 @@ def response_actions_list(request):
             action.timestamp = to_local(action.timestamp)
             
     return render(request, 'dashboard/response_actions.html', {'actions': actions})
+
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+@ratelimit_with_logging(key='user', rate=settings.RATELIMIT_DASHBOARD_READ, method='GET')
+def global_search(request):
+    """
+    Global omnisearch API (P0-013)
+    Searches across alerts and endpoints
+    Returns max 5 results per category for fast typeahead
+    """
+    from mongoengine import Q
+    
+    query = request.GET.get('q', '').strip()
+    
+    if len(query) < 2:
+        return JsonResponse({'alerts': [], 'endpoints': []})
+    
+    # Search alerts using Q objects for OR logic (MongoEngine syntax)
+    alerts_qs = Alert.objects.filter(
+        Q(alert_id__icontains=query) |
+        Q(rule_name__icontains=query) |
+        Q(endpoint_id__icontains=query)
+    )
+    
+    # Limit to 5 most recent for typeahead performance
+    alerts = list(alerts_qs.order_by('-first_detected')[:5])
+    
+    alerts_data = []
+    for alert in alerts:
+        alerts_data.append({
+            'alert_id': alert.alert_id,
+            'severity': alert.severity,
+            'rule_name': alert.rule_name,
+            'endpoint_id': alert.endpoint_id,
+            'status': alert.alert_status
+        })
+    
+    # Search endpoints (unique endpoint_ids)
+    # Get distinct endpoints matching query
+    # distinct() returns a list, so we slice it directly
+    endpoints = Alert.objects.filter(
+        endpoint_id__icontains=query
+    ).distinct('endpoint_id')
+    
+    # Limit to 5
+    endpoints = endpoints[:5]
+    
+    return JsonResponse({
+        'alerts': alerts_data,
+        'endpoints': endpoints
+    })
+
+
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+@ratelimit_with_logging(key='user', rate='50/m', method='POST')
+def bulk_alert_action(request):
+    """
+    Bulk operations API (P0-004)
+    Handles bulk resolve, false positive, and assignment
+    """
+    import json
+    try:
+        # Use DRF request.data instead of raw body to avoid stream consumption errors
+        data = request.data
+        alert_ids = data.get('alert_ids', [])
+        action = data.get('action')
+        note = data.get('note', '')
+        assignee = data.get('assignee')
+        
+        if not alert_ids or not action:
+            return JsonResponse({'error': 'Missing alert_ids or action'}, status=400)
+            
+        success_count = 0
+        errors = []
+        
+        # Validate action
+        valid_actions = ['resolve', 'false_positive', 'assign']
+        if action not in valid_actions:
+            return JsonResponse({'error': f'Invalid action. Must be one of: {", ".join(valid_actions)}'}, status=400)
+            
+        # Process each alert
+        for alert_id in alert_ids:
+            try:
+                alert = Alert.objects.get(alert_id=alert_id)
+                
+                if action == 'resolve':
+                    alert.mark_resolved(request.user.email, note)
+                elif action == 'false_positive':
+                    alert.mark_false_positive(request.user.email, note)
+                elif action == 'assign':
+                    if not assignee:
+                        errors.append(f"{alert_id}: Missing assignee email")
+                        continue
+                    alert.assign_to(assignee)
+                    if note:
+                        alert.add_note(request.user.email, f"Bulk assignment note: {note}")
+                        
+                success_count += 1
+            except Alert.DoesNotExist:
+                errors.append(f"{alert_id}: Not found")
+            except Exception as e:
+                errors.append(f"{alert_id}: {str(e)}")
+        
+        return JsonResponse({
+            'success_count': success_count,
+            'total_requested': len(alert_ids),
+            'errors': errors
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

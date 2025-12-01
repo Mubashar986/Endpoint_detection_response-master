@@ -43,13 +43,18 @@ urlpatterns = [
     # SOC Action APIs
     path('api/v1/dashboard/alerts/<str:alert_id>/status/', dashboard_views.alert_update_status, name='alert_status'),
     path('api/v1/dashboard/alerts/<str:alert_id>/assign/', dashboard_views.alert_assign, name='alert_assign'),
+    path('api/v1/dashboard/alerts/<str:alert_id>/assign/', dashboard_views.alert_assign, name='alert_assign'),
     path('api/v1/dashboard/alerts/<str:alert_id>/note/', dashboard_views.alert_add_note, name='alert_note'),
+    path('api/v1/alerts/bulk/', dashboard_views.bulk_alert_action, name='bulk_alert_action'), # P0-004 Bulk Ops
     path('api/v1/dashboard/rules/<str:rule_id>/toggle/', dashboard_views.rule_toggle, name='rule_toggle'),
     path('dashboard/alerts/', dashboard_views.alerts_list_view, name='alerts_list'),
     path('dashboard/response-actions/', dashboard_views.response_actions_list, name='response_actions_list'),
 
     # Investigation API
     path('api/v1/dashboard/alerts/<str:alert_id>/timeline/', dashboard_views.alert_timeline, name='alert_timeline'),
+    
+    # Global Search API (P0-013)
+    path('api/v1/search/', dashboard_views.global_search, name='global_search'),
     
     # ========== DASHBOARD PAGES (HTML views) ==========
     path('dashboard/', dashboard_views.dashboard_home, name='dashboard_home'),
