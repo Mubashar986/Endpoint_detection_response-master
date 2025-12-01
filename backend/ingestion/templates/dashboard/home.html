@@ -8,15 +8,15 @@
     .gradient-primary {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     }
-    
+
     .gradient-success {
         background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
     }
-    
+
     .gradient-warning {
         background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
     }
-    
+
     .gradient-danger {
         background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
     }
@@ -29,14 +29,14 @@
         position: relative;
         overflow: hidden;
         transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
     }
-    
+
     .stat-card-modern:hover {
         transform: translateY(-5px);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
     }
-    
+
     .stat-card-modern::before {
         content: '';
         position: absolute;
@@ -44,26 +44,26 @@
         right: 0;
         width: 100px;
         height: 100px;
-        background: rgba(255,255,255,0.1);
+        background: rgba(255, 255, 255, 0.1);
         border-radius: 50%;
         transform: translate(30%, -30%);
     }
-    
+
     .stat-card-modern h3 {
         font-size: 36px;
         font-weight: bold;
         margin: 15px 0 5px 0;
     }
-    
+
     .stat-card-modern p {
         font-size: 14px;
         text-transform: uppercase;
         letter-spacing: 1px;
         opacity: 0.9;
     }
-    
+
     .stat-card-modern small {
-        background: rgba(255,255,255,0.2);
+        background: rgba(255, 255, 255, 0.2);
         padding: 4px 10px;
         border-radius: 20px;
         font-size: 11px;
@@ -74,11 +74,11 @@
         border-radius: 10px;
         overflow: hidden;
     }
-    
+
     .table-hover tbody tr {
         transition: all 0.2s ease;
     }
-    
+
     .table-hover tbody tr:hover {
         background: linear-gradient(90deg, #f8f9fa 0%, #e3f2fd 100%);
         transform: scale(1.01);
@@ -89,17 +89,17 @@
         background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
         box-shadow: 0 0 10px rgba(255, 107, 107, 0.5);
     }
-    
+
     .badge-high {
         background: linear-gradient(135deg, #ff8c00, #ffa500);
         box-shadow: 0 0 10px rgba(255, 140, 0, 0.5);
     }
-    
+
     .badge-medium {
         background: linear-gradient(135deg, #ffd93d, #ffb400);
         box-shadow: 0 0 10px rgba(255, 217, 61, 0.5);
     }
-    
+
     .badge-low {
         background: linear-gradient(135deg, #51cf66, #37b24d);
         box-shadow: 0 0 10px rgba(81, 207, 102, 0.5);
@@ -113,7 +113,7 @@
         font-size: 14px;
         transition: all 0.3s ease;
     }
-    
+
     #alertSearchBox:focus {
         border-color: #667eea;
         box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
@@ -129,14 +129,17 @@
 
     /* ========== PULSING LIVE INDICATOR ========== */
     @keyframes pulse-glow {
-        0%, 100% {
+
+        0%,
+        100% {
             box-shadow: 0 0 5px rgba(40, 167, 69, 0.5);
         }
+
         50% {
             box-shadow: 0 0 20px rgba(40, 167, 69, 0.8);
         }
     }
-    
+
     .badge-live {
         animation: pulse-glow 2s infinite;
     }
@@ -155,10 +158,10 @@
         transition: all 0.3s ease;
         border: 2px solid;
     }
-    
+
     .quick-action-btn:hover {
         transform: translateX(5px);
-        box-shadow: -5px 5px 15px rgba(0,0,0,0.1);
+        box-shadow: -5px 5px 15px rgba(0, 0, 0, 0.1);
     }
 
     /* ========== RULE CARDS ========== */
@@ -166,7 +169,7 @@
         border-left: 4px solid #667eea;
         transition: all 0.3s ease;
     }
-    
+
     .rule-card:hover {
         border-left-width: 6px;
         background: #f8f9fa;
@@ -176,12 +179,13 @@
 
 {% block content %}
 <div class="container-fluid">
-    
+
     <!-- ========== HEADER WITH REFRESH ========== -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="mb-0">
-            <i class="fas fa-shield-alt" style="color: #667eea;"></i> 
-            <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+            <i class="fas fa-shield-alt" style="color: #667eea;"></i>
+            <span
+                style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
                 Security Operations Center
             </span>
         </h1>
@@ -199,7 +203,8 @@
     <div class="row mb-4">
         <div class="col-md-3 mb-3">
             <div class="stat-card-modern gradient-primary">
-                <i class="fas fa-database" style="font-size: 40px; opacity: 0.3; position: absolute; right: 20px; top: 20px;"></i>
+                <i class="fas fa-database"
+                    style="font-size: 40px; opacity: 0.3; position: absolute; right: 20px; top: 20px;"></i>
                 <div style="position: relative; z-index: 1;">
                     <p class="mb-0">Total Events</p>
                     <h3>{{ total_events|default:"0"|floatformat:0 }}</h3>
@@ -212,7 +217,8 @@
 
         <div class="col-md-3 mb-3">
             <div class="stat-card-modern gradient-success">
-                <i class="fas fa-shield-alt" style="font-size: 40px; opacity: 0.3; position: absolute; right: 20px; top: 20px;"></i>
+                <i class="fas fa-shield-alt"
+                    style="font-size: 40px; opacity: 0.3; position: absolute; right: 20px; top: 20px;"></i>
                 <div style="position: relative; z-index: 1;">
                     <p class="mb-0">Active Rules</p>
                     <h3>{{ active_rules|default:"0" }}</h3>
@@ -225,7 +231,8 @@
 
         <div class="col-md-3 mb-3">
             <div class="stat-card-modern gradient-warning">
-                <i class="fas fa-exclamation-triangle" style="font-size: 40px; opacity: 0.3; position: absolute; right: 20px; top: 20px;"></i>
+                <i class="fas fa-exclamation-triangle"
+                    style="font-size: 40px; opacity: 0.3; position: absolute; right: 20px; top: 20px;"></i>
                 <div style="position: relative; z-index: 1;">
                     <p class="mb-0">Total Alerts</p>
                     <h3>{{ total_alerts|default:"0" }}</h3>
@@ -238,7 +245,8 @@
 
         <div class="col-md-3 mb-3">
             <div class="stat-card-modern gradient-danger">
-                <i class="fas fa-bell" style="font-size: 40px; opacity: 0.3; position: absolute; right: 20px; top: 20px;"></i>
+                <i class="fas fa-bell"
+                    style="font-size: 40px; opacity: 0.3; position: absolute; right: 20px; top: 20px;"></i>
                 <div style="position: relative; z-index: 1;">
                     <p class="mb-0">Unresolved</p>
                     <h3>{{ unresolved|default:"0" }}</h3>
@@ -274,67 +282,104 @@
             </h5>
         </div>
         <div class="card-body">
-            
-            <!-- Search Box -->
+
+            <!-- P0-003: FILTER CONTROLS -->
             <div class="mb-4">
-                <input type="text" 
-                       class="form-control" 
-                       id="alertSearchBox" 
-                       placeholder="🔍 Search alerts..."
-                       onkeyup="filterAlerts()">
+                <div class="row align-items-center mb-3">
+                    <div class="col-md-8">
+                        <label class="form-label mb-2"><strong><i class="fas fa-filter"></i> Filter by
+                                Severity:</strong></label>
+                        <div class="btn-group" role="group">
+                            <input type="radio" class="btn-check" name="severityFilter" id="sev-all" value="" checked>
+                            <label class="btn btn-outline-secondary" for="sev-all">All</label>
+                            <input type="radio" class="btn-check" name="severityFilter" id="sev-crit" value="CRITICAL">
+                            <label class="btn btn-outline-danger" for="sev-crit"><i
+                                    class="fas fa-exclamation-triangle"></i> Critical</label>
+                            <input type="radio" class="btn-check" name="severityFilter" id="sev-high" value="HIGH">
+                            <label class="btn btn-outline-warning" for="sev-high"><i
+                                    class="fas fa-exclamation-circle"></i> High</label>
+                            <input type="radio" class="btn-check" name="severityFilter" id="sev-med" value="MEDIUM">
+                            <label class="btn btn-outline-info" for="sev-med"><i class="fas fa-info-circle"></i>
+                                Medium</label>
+                            <input type="radio" class="btn-check" name="severityFilter" id="sev-low" value="LOW">
+                            <label class="btn btn-outline-success" for="sev-low"><i class="fas fa-check-circle"></i>
+                                Low</label>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label mb-2"><strong><i class="fas fa-clock"></i> Time Range:</strong></label>
+                        <select id="timeRangeFilter" class="form-select" style="border-radius: 10px;">
+                            <option value="1h">Last Hour</option>
+                            <option value="24h" selected>Last 24 Hours</option>
+                            <option value="7d">Last 7 Days</option>
+                            <option value="30d">Last 30 Days</option>
+                            <option value="all">All Time</option>
+                        </select>
+                    </div>
+                </div>
+                <input type="text" class="form-control" id="alertSearchBox"
+                    placeholder="🔍 Search alerts by ID, rule, or endpoint..." onkeyup="filterAlertsClientSide()"
+                    style="border-radius: 10px; border: 2px solid #e0e0e0;">
             </div>
 
             {% if recent_alerts %}
-                <div class="table-responsive alert-table-wrapper">
-                    <table class="table table-hover align-middle mb-0" id="alertsTable">
-                        <thead style="background: #f8f9fa;">
-                            <tr>
-                                <th style="border: none;">Alert ID</th>
-                                <th style="border: none;">Severity</th>
-                                <th style="border: none;">Rule</th>
-                                <th style="border: none;">Endpoint</th>
-                                <th style="border: none;">Time</th>
-                                <th style="border: none;">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for alert in recent_alerts %}
-                            <tr>
-                                <td>
-                                    <a href="/dashboard/alerts/{{ alert.alert_id }}/" style="text-decoration: none; color: #667eea; font-weight: 500;">
-                                        <small>{{ alert.alert_id }}</small>
-                                    </a>
-                                </td>
-                                <td>
-                                    <span class="badge badge-{{ alert.severity|lower }}">
-                                        {{ alert.severity }}
-                                    </span>
-                                </td>
-                                <td><strong>{{ alert.rule_name }}</strong></td>
-                                <td>{{ alert.endpoint_id }}</td>
-                                <td>
-                                    <small class="text-muted">
-                                        <i class="far fa-clock"></i>
-                                        {{ alert.first_detected|timesince }} ago
-                                    </small>
-                                </td>
-                                <td>
-                                    <a href="/dashboard/alerts/{{ alert.alert_id }}/" 
-                                       class="btn btn-sm" 
-                                       style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 20px;">
-                                        <i class="fas fa-eye"></i> View
-                                    </a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+            <div class="table-responsive alert-table-wrapper">
+                <table class="table table-hover align-middle mb-0" id="alertsTable">
+                    <thead style="background: #f8f9fa;">
+                        <tr>
+                            <!-- P0-004: Select All Checkbox -->
+                            <th style="border: none; width: 40px;"><input type="checkbox" id="selectAll"
+                                    class="form-check-input"></th>
+                            <th style="border: none;">Alert ID</th>
+                            <th style="border: none;">Severity</th>
+                            <th style="border: none;">Rule</th>
+                            <th style="border: none;">Endpoint</th>
+                            <th style="border: none;">Time</th>
+                            <th style="border: none;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for alert in recent_alerts %}
+                        <tr>
+                            <!-- P0-004: Individual Checkbox -->
+                            <td><input type="checkbox" class="form-check-input alert-checkbox"
+                                    value="{{ alert.alert_id }}"></td>
+                            <td>
+                                <a href="/dashboard/alerts/{{ alert.alert_id }}/"
+                                    style="text-decoration: none; color: #667eea; font-weight: 500;">
+                                    <small>{{ alert.alert_id }}</small>
+                                </a>
+                            </td>
+                            <td>
+                                <span class="badge badge-{{ alert.severity|lower }}">
+                                    {{ alert.severity }}
+                                </span>
+                            </td>
+                            <td><strong>{{ alert.rule_name }}</strong></td>
+                            <td>{{ alert.endpoint_id }}</td>
+                            <td>
+                                <small class="text-muted">
+                                    <i class="far fa-clock"></i>
+                                    {{ alert.first_detected|timesince }} ago
+                                </small>
+                            </td>
+                            <td>
+                                <a href="/dashboard/alerts/{{ alert.alert_id }}/" class="btn btn-sm"
+                                    style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 20px;">
+                                    <i class="fas fa-eye"></i> View
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
             {% else %}
-                <div class="alert" style="background: linear-gradient(135deg, #51cf66, #37b24d); color: white; border: none; border-radius: 10px;">
-                    <i class="fas fa-check-circle"></i> 
-                    No unresolved alerts. Your system is secure!
-                </div>
+            <div class="alert"
+                style="background: linear-gradient(135deg, #51cf66, #37b24d); color: white; border: none; border-radius: 10px;">
+                <i class="fas fa-check-circle"></i>
+                No unresolved alerts. Your system is secure!
+            </div>
             {% endif %}
         </div>
         <div class="card-footer bg-light" style="border-radius: 0 0 15px 15px;">
@@ -390,15 +435,15 @@
                     <div class="mb-3">
                         <small class="text-muted">Rules Active</small>
                         <div class="progress mt-2" style="height: 8px; border-radius: 10px;">
-                            <div class="progress-bar" 
-                                 style="width: {% widthratio active_rules total_rules 100 %}%; background: linear-gradient(90deg, #11998e, #38ef7d);">
+                            <div class="progress-bar"
+                                style="width: {% widthratio active_rules total_rules 100 %}%; background: linear-gradient(90deg, #11998e, #38ef7d);">
                             </div>
                         </div>
                         <small class="text-muted">{{ active_rules }}/{{ total_rules }}</small>
                     </div>
-                    
+
                     <hr>
-                    
+
                     <div class="alert alert-info" style="border-radius: 10px;">
                         <i class="fas fa-sync-alt"></i>
                         <small>Auto-refresh: <span id="countdown" class="badge bg-primary">30</span>s</small>
@@ -428,49 +473,270 @@
 
 </div>
 
+<!-- P0-004: FLOATING ACTION BAR -->
+<div id="bulkActionBar"
+    style="position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 20px 40px; border-radius: 50px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); z-index: 1050; transition: bottom 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55); display: none;">
+    <span id="selectedCount" class="fw-bold">0</span> alert(s) selected
+    <button class="btn btn-light btn-sm ms-3 rounded-pill" onclick="showBulkModal('resolve')"><i
+            class="fas fa-check"></i> Resolve</button>
+    <button class="btn btn-warning btn-sm ms-2 rounded-pill" onclick="showBulkModal('false_positive')"><i
+            class="fas fa-times-circle"></i> False Positive</button>
+    <button class="btn btn-info btn-sm ms-2 rounded-pill" onclick="showBulkModal('assign')"><i class="fas fa-user"></i>
+        Assign</button>
+    <button class="btn btn-outline-light btn-sm ms-3 rounded-pill" onclick="clearAllSelections()"><i
+            class="fas fa-times"></i> Clear</button>
+</div>
+
+<!-- P0-004: BULK ACTION MODAL -->
+<div class="modal fade" id="bulkActionModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius: 15px; border: none;">
+            <div class="modal-header"
+                style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 15px 15px 0 0;">
+                <h5 class="modal-title" id="bulkActionTitle">Bulk Action</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="bulkProcessing" style="display: none; text-align: center;">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2">Processing...</p>
+                </div>
+                <div id="bulkInputContainer">
+                    <p id="bulkActionDescription"></p>
+                    <div id="bulkInputGroup" class="mb-3">
+                        <label for="bulkInput" class="form-label" id="bulkInputLabel"></label>
+                        <input type="text" class="form-control" id="bulkInput" style="border-radius: 10px;">
+                        <div class="invalid-feedback">This field is required.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="border: none;">
+                <button type="button" class="btn btn-secondary rounded-pill px-4"
+                    data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary rounded-pill px-4" id="bulkConfirmBtn"
+                    onclick="performBulkAction()">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-// Chart
-const ctx = document.getElementById('alertChart');
-fetch('/api/v1/dashboard/stats/')
-    .then(r => r.json())
-    .then(data => {
-        new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['Unresolved', 'Resolved'],
-                datasets: [{
-                    data: [data.unresolved_alerts || 0, (data.total_alerts - data.unresolved_alerts) || 0],
-                    backgroundColor: ['#ff6b6b', '#51cf66'],
-                    borderWidth: 0
-                }]
-            },
-            options: {
-                plugins: { legend: { position: 'bottom' } }
+    // Chart
+    const ctx = document.getElementById('alertChart');
+    fetch('/api/v1/dashboard/stats/')
+        .then(r => r.json())
+        .then(data => {
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Unresolved', 'Resolved'],
+                    datasets: [{
+                        data: [data.unresolved_alerts || 0, (data.total_alerts - data.unresolved_alerts) || 0],
+                        backgroundColor: ['#ff6b6b', '#51cf66'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    plugins: { legend: { position: 'bottom' } }
+                }
+            });
+        });
+
+    // ========== P0-003: CLIENT-SIDE FILTERING ==========
+    function filterAlertsClientSide() {
+        const searchInput = document.getElementById('alertSearchBox').value.toUpperCase();
+        const severityFilter = document.querySelector('input[name="severityFilter"]:checked').value;
+        const timeFilter = document.getElementById('timeRangeFilter').value;
+        const rows = document.querySelectorAll('#alertsTable tbody tr');
+
+        rows.forEach(row => {
+            const text = row.textContent.toUpperCase();
+            const severityBadge = row.querySelector('.badge') ? row.querySelector('.badge').textContent.trim() : '';
+
+            // Search filter
+            const matchesSearch = text.includes(searchInput);
+
+            // Severity filter
+            const matchesSeverity = !severityFilter || severityBadge === severityFilter;
+
+            // Time filter (simplified - in production you'd parse dates)
+            const matchesTime = true; // All alerts pass for now (server-side would handle this properly)
+
+            row.style.display = (matchesSearch && matchesSeverity && matchesTime) ? '' : 'none';
+        });
+    }
+
+    // Add event listeners for P0-003 filters
+    document.querySelectorAll('input[name="severityFilter"]').forEach(radio => {
+        radio.addEventListener('change', filterAlertsClientSide);
+    });
+    document.getElementById('timeRangeFilter').addEventListener('change', filterAlertsClientSide);
+
+    // ========== P0-004: BULK OPERATIONS ==========
+    let currentBulkAction = '';
+
+    // Select All checkbox handler
+    document.getElementById('selectAll').addEventListener('change', function () {
+        const checkboxes = document.querySelectorAll('.alert-checkbox');
+        checkboxes.forEach(cb => {
+            if (cb.closest('tr').style.display !== 'none') {
+                cb.checked = this.checked;
             }
         });
+        updateBulkActionBar();
     });
 
-// Filter
-function filterAlerts() {
-    const input = document.getElementById('alertSearchBox');
-    const filter = input.value.toUpperCase();
-    const rows = document.querySelectorAll('#alertsTable tbody tr');
-    
-    rows.forEach(row => {
-        const text = row.textContent.toUpperCase();
-        row.style.display = text.includes(filter) ? '' : 'none';
+    // Individual checkbox handler
+    document.querySelectorAll('.alert-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', updateBulkActionBar);
     });
-}
 
-// Countdown
-let countdown = 30;
-setInterval(() => {
-    countdown--;
-    document.getElementById('countdown').textContent = countdown;
-    if (countdown <= 0) location.reload();
-}, 1000);
+    function updateBulkActionBar() {
+        const selected = document.querySelectorAll('.alert-checkbox:checked');
+        const count = selected.length;
+        const bar = document.getElementById('bulkActionBar');
+        const selectAllCheckbox = document.getElementById('selectAll');
+
+        document.getElementById('selectedCount').textContent = count;
+
+        if (count > 0) {
+            bar.style.display = 'block';
+            setTimeout(() => { bar.style.bottom = '30px'; }, 10);
+            selectAllCheckbox.indeterminate = count < document.querySelectorAll('.alert-checkbox').length;
+        } else {
+            bar.style.bottom = '-100px';
+            setTimeout(() => { bar.style.display = 'none'; }, 400);
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+        }
+    }
+
+    function clearAllSelections() {
+        document.querySelectorAll('.alert-checkbox').forEach(cb => cb.checked = false);
+        document.getElementById('selectAll').checked = false;
+        updateBulkActionBar();
+    }
+
+    function showBulkModal(action) {
+        currentBulkAction = action;
+        const modal = new bootstrap.Modal(document.getElementById('bulkActionModal'));
+        const title = document.getElementById('bulkActionTitle');
+        const description = document.getElementById('bulkActionDescription');
+        const inputLabel = document.getElementById('bulkInputLabel');
+        const confirmBtn = document.getElementById('bulkConfirmBtn');
+        const bulkInput = document.getElementById('bulkInput');
+
+        bulkInput.value = '';
+        bulkInput.classList.remove('is-invalid');
+
+        const count = document.querySelectorAll('.alert-checkbox:checked').length;
+
+        switch (action) {
+            case 'resolve':
+                title.textContent = 'Resolve Alerts';
+                description.textContent = `Are you sure you want to resolve ${count} selected alert(s)?`;
+                inputLabel.textContent = 'Resolution Note (Optional)';
+                bulkInput.placeholder = 'Add a note...';
+                confirmBtn.className = 'btn btn-success rounded-pill px-4';
+                break;
+            case 'false_positive':
+                title.textContent = 'Mark as False Positive';
+                description.textContent = `Mark ${count} alert(s) as false positive?`;
+                inputLabel.textContent = 'Reason (Required)';
+                bulkInput.placeholder = 'Explain why this is a false positive...';
+                confirmBtn.className = 'btn btn-warning rounded-pill px-4 text-dark';
+                break;
+            case 'assign':
+                title.textContent = 'Assign Alerts';
+                description.textContent = `Assign ${count} alert(s) to an analyst.`;
+                inputLabel.textContent = 'Analyst Email (Required)';
+                bulkInput.placeholder = 'analyst@example.com';
+                confirmBtn.className = 'btn btn-info rounded-pill px-4 text-white';
+                break;
+        }
+
+        modal.show();
+    }
+
+    function performBulkAction() {
+        const selected = Array.from(document.querySelectorAll('.alert-checkbox:checked')).map(cb => cb.value);
+        const bulkInput = document.getElementById('bulkInput');
+        const inputValue = bulkInput.value.trim();
+
+        // Validate required fields
+        if ((currentBulkAction === 'false_positive' || currentBulkAction === 'assign') && !inputValue) {
+            bulkInput.classList.add('is-invalid');
+            return;
+        }
+        bulkInput.classList.remove('is-invalid');
+
+        // Show processing
+        document.getElementById('bulkInputContainer').style.display = 'none';
+        document.getElementById('bulkProcessing').style.display = 'block';
+
+        // Prepare request data
+        const data = {
+            alert_ids: selected,
+            action: currentBulkAction,
+            note: currentBulkAction === 'false_positive' || currentBulkAction === 'resolve' ? inputValue : '',
+            assignee: currentBulkAction === 'assign' ? inputValue : null
+        };
+
+        fetch('/api/v1/alerts/bulk/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(data)
+        })
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return response.json();
+            })
+            .then(result => {
+                bootstrap.Modal.getInstance(document.getElementById('bulkActionModal')).hide();
+                alert(`Success! ${result.success_count} alert(s) processed.${result.errors.length > 0 ? '\n\nErrors:\n' + result.errors.join('\n') : ''}`);
+                location.reload();
+            })
+            .catch(error => {
+                document.getElementById('bulkProcessing').style.display = 'none';
+                document.getElementById('bulkInputContainer').style.display = 'block';
+                alert('Error: ' + error.message);
+            });
+    }
+
+    // Reset modal on close
+    document.getElementById('bulkActionModal').addEventListener('hidden.bs.modal', function () {
+        document.getElementById('bulkInputContainer').style.display = 'block';
+        document.getElementById('bulkProcessing').style.display = 'none';
+    });
+
+    // Helper to get CSRF token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // Countdown
+    let countdown = 30;
+    setInterval(() => {
+        countdown--;
+        document.getElementById('countdown').textContent = countdown;
+        if (countdown <= 0) location.reload();
+    }, 1000);
 </script>
 
 {% endblock %}
