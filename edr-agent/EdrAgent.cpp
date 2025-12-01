@@ -38,8 +38,6 @@ HttpClient* g_httpClient = nullptr;                 // Active now
 // Main Function
 // ============================================
 int main() {
-    std::cout << "===============  fake event sent to the serv`=========================" << std::endl;
-    
     std::cout << "========================================" << std::endl;
     std::cout << "  EDR Agent v1.0" << std::endl;
     std::cout << "  HTTP Mode (WebSocket added but fot the future )" << std::endl;
@@ -161,48 +159,6 @@ int main() {
         std::cout << "  Monitoring " << subscriptions.size() << " event source(s)" << std::endl;
         std::cout << "\nPress any key to stop monitoring..." << std::endl;
         std::cout << "========================================\n" << std::endl;
-
-
-        std::cout << "===================fake event to the server =====================\n" << std::endl;
-
-
-        // ========== TEST EVENT INJECTION - REMOVE AFTER DEBUGGING ==========
-        std::cout << "\n[TEST] Injecting fake event to verify pipeline..." << std::endl;
-        try {
-            nlohmann::json testEvent;
-            testEvent["agent_id"] = EventConverter::getHostname();
-            testEvent["event_id"] = "test-" + std::to_string(std::time(nullptr));
-            testEvent["event_type"] = "process";
-            testEvent["severity"] = "info";
-            testEvent["timestamp"] = std::time(nullptr);
-            testEvent["version"] = "1.0";
-            testEvent["host"] = {
-                {"hostname", EventConverter::getHostname()},
-                {"os", "Windows"}
-            };
-            testEvent["process"] = {
-                {"name", "TEST_FAKE_PROCESS.exe"},
-                {"pid", 99999},
-                {"command_line", "C:\\TEST\\fake.exe --test"},
-                {"user", "test_user"},
-                {"parent_image", "C:\\Windows\\explorer.exe"},
-                {"action", "create"}
-            };
-            
-            std::vector<nlohmann::json> testBatch = { testEvent };
-            if (g_httpClient->sendTelemetryBatch(testBatch)) {
-                std::cout << "[TEST] ✅ Fake event sent successfully!" << std::endl;
-            } else {
-                std::cerr << "[TEST] ❌ Fake event failed to send!" << std::endl;
-            }
-        } catch (const std::exception& e) {
-            std::cerr << "[TEST] Exception: " << e.what() << std::endl;
-        }
-        std::cout << "[TEST] Pipeline test complete. Resuming normal monitoring...\n" << std::endl;
-        // ========== END TEST EVENT INJECTION ==========
-         
-                std::cout << "=========== facke sent ot he =============================\n" << std::endl;
-
 
         // Main event loop
         while (!_kbhit()) {
