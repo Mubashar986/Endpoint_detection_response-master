@@ -4,7 +4,6 @@
 ---
 
 # Part 1: Technical Reference Manual
-**Target Audience:** System Architects, DevOps Engineers, Security Operations Center (SOC) Engineers, and Developers.
 
 ## 1.1 System Overview
 
