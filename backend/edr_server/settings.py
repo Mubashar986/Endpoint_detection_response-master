@@ -71,11 +71,12 @@ ASGI_APPLICATION = 'edr_server.asgi.application'
 
 # Channel Layer using Redis for message passing between consumers
 # Required for group messaging (sending commands to all agents)
+# In Docker, use 'redis' as hostname (service name)
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [(os.environ.get('REDIS_HOST', '127.0.0.1'), 6379)],
+            "hosts": [(os.environ.get('REDIS_HOST', 'redis' if os.environ.get('MONGODB_URI') else 'localhost'), 6379)],
         },
     },
 }
@@ -172,15 +173,27 @@ LOGOUT_REDIRECT_URL = '/accounts/login/'  # Corrected path
 
 from mongoengine import connect
 
-connect(
-    db='edr_telemetry',
-    host='localhost',
-    port=27017
-)
+# MongoDB Configuration
+# Priority: MONGODB_URI env var > individual settings > defaults
+MONGODB_URI = os.environ.get('MONGODB_URI')
+
+if MONGODB_URI:
+    # Docker/Production: Use full URI
+    connect(host=MONGODB_URI)
+else:
+    # Local development: Use individual settings
+    connect(
+        db=os.environ.get('MONGODB_DB', 'edr_telemetry'),
+        host=os.environ.get('MONGODB_HOST', 'localhost'),
+        port=int(os.environ.get('MONGODB_PORT', 27017))
+    )
 
 
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+
+# Celery Configuration - Use REDIS_URL for Docker, fallback for local
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 
@@ -196,7 +209,7 @@ CELERY_WORKER_POOL = 'gevent'  # Use gevent pool for concurrency on Windows
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/1',  # Database 1 for caching/rate limiting
+        'LOCATION': os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/1'),  # Database 1 for caching
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
         },

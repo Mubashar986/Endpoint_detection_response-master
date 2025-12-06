@@ -1,0 +1,103 @@
+# ===========================================
+# DOCKER COMPOSE FOR EDR SYSTEM
+# ===========================================
+# Usage:
+#   docker-compose up        - Start all services
+#   docker-compose up -d     - Start in background
+#   docker-compose down      - Stop all services
+#   docker-compose logs -f   - View logs
+# ===========================================
+
+version: '3.8'
+
+services:
+  # =========================================
+  # DJANGO WEB SERVER (Daphne for WebSocket)
+  # =========================================
+  web:
+    build: ./backend
+    container_name: edr_web
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=your-secret-key-change-in-production
+      - MONGODB_URI=mongodb://mongodb:27017/edr_telemetry
+      - REDIS_URL=redis://redis:6379/0
+      - ALLOWED_HOSTS=*
+    depends_on:
+      - mongodb
+      - redis
+    volumes:
+      # Mount code for live reload during development
+      - ./backend:/app
+    networks:
+      - edr_network
+    restart: unless-stopped
+
+  # =========================================
+  # CELERY WORKER (Background Tasks)
+  # =========================================
+  celery:
+    build: ./backend
+    container_name: edr_celery
+    command: celery -A edr_server worker -l info -P gevent -c 10
+    environment:
+      - DEBUG=True
+      - MONGODB_URI=mongodb://mongodb:27017/edr_telemetry
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - mongodb
+      - redis
+      - web
+    volumes:
+      - ./backend:/app
+    networks:
+      - edr_network
+    restart: unless-stopped
+
+  # =========================================
+  # MONGODB DATABASE
+  # =========================================
+  mongodb:
+    image: mongo:6.0
+    container_name: edr_mongodb
+    ports:
+      - "27018:27017"  # Use 27018 externally to avoid conflict with local MongoDB
+    volumes:
+      # Persist database data
+      - mongodb_data:/data/db
+    networks:
+      - edr_network
+    restart: unless-stopped
+
+  # =========================================
+  # REDIS (Message Queue + Channel Layer)
+  # =========================================
+  redis:
+    image: redis:7-alpine
+    container_name: edr_redis
+    ports:
+      - "6380:6379"  # Use 6380 externally to avoid conflict with local Redis
+    volumes:
+      - redis_data:/data
+    networks:
+      - edr_network
+    restart: unless-stopped
+
+# =========================================
+# NAMED VOLUMES (Persistent Storage)
+# =========================================
+volumes:
+  mongodb_data:
+    name: edr_mongodb_data
+  redis_data:
+    name: edr_redis_data
+
+# =========================================
+# NETWORK
+# =========================================
+networks:
+  edr_network:
+    name: edr_network
+    driver: bridge
