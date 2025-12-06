@@ -18,6 +18,11 @@
 #include <vector>
 #include <TlHelp32.h>
 
+// MSVC Compatibility: NTSTATUS is not always defined
+#ifndef NTSTATUS
+typedef LONG NTSTATUS;
+#endif
+
 #pragma comment(lib, "iphlpapi.lib")
 
 namespace CommandProcessor 
@@ -41,13 +46,45 @@ namespace CommandProcessor
         {
             commandJson = json::parse(command);
             commandType = commandJson.at("type").get<std::string>();
+            
+            // Debug: Log received command
+            std::cout << "[CommandProcessor] Received type: " << commandType << std::endl;
+            std::cout << "[CommandProcessor] Full JSON: " << command.substr(0, 200) << "..." << std::endl;
         } 
-        catch (const std::exception&) 
+        catch (const std::exception& e) 
         {
+            std::cerr << "[CommandProcessor] Parse error: " << e.what() << std::endl;
             return R"({"type": "error", "status": "invalid JSON or missing 'type' field"})";
         }
 
-        // Check for Response Actions first
+        // =====================================================
+        // Handle WebSocket command messages (type="command")
+        // Server sends: {"type": "command", "action": "kill_process", ...}
+        // =====================================================
+        if (commandType == "command") {
+            std::string action = commandJson.value("action", "");
+            json params = commandJson.value("parameters", json::object());
+            std::string commandId = commandJson.value("command_id", "");
+            
+            std::cout << "[CommandProcessor] WebSocket command received!" << std::endl;
+            std::cout << "  → Command ID: " << commandId << std::endl;
+            std::cout << "  → Action: " << action << std::endl;
+            std::cout << "  → Params: " << params.dump() << std::endl;
+            
+            // Execute the response action
+            if (action == "kill_process" || action == "isolate_host" || action == "deisolate_host") {
+                json result = executeResponseCommand(action, params);
+                result["command_id"] = commandId;  // Include command_id in response
+                result["type"] = "response";        // Mark as response
+                std::cout << "[CommandProcessor] Result: " << result.dump() << std::endl;
+                return result.dump(4);
+            }
+            
+            std::cerr << "[CommandProcessor] Unknown action: " << action << std::endl;
+            return json({{"type", "error"}, {"status", "unknown action"}, {"action", action}}).dump(4);
+        }
+
+        // Check for Response Actions (direct type, for backward compatibility with HTTP polling)
         if (commandType == "kill_process" || commandType == "isolate_host" || commandType == "deisolate_host") {
             json params = commandJson.value("parameters", json::object());
             return executeResponseCommand(commandType, params).dump(4);

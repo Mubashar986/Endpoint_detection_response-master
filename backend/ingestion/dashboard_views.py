@@ -462,12 +462,13 @@ def global_search(request):
 @ratelimit_with_logging(key='user', rate='50/m', method='POST')
 def bulk_alert_action(request):
     """
-    Bulk operations API (P0-004)
-    Handles bulk resolve, false positive, and assignment
+    Bulk operations API (P0-004) - Optimized
+    Handles bulk resolve, false positive, and assignment using atomic updates.
     """
     import json
+    from datetime import datetime, timezone
+    
     try:
-        # Use DRF request.data instead of raw body to avoid stream consumption errors
         data = request.data
         alert_ids = data.get('alert_ids', [])
         action = data.get('action')
@@ -477,41 +478,71 @@ def bulk_alert_action(request):
         if not alert_ids or not action:
             return JsonResponse({'error': 'Missing alert_ids or action'}, status=400)
             
-        success_count = 0
-        errors = []
-        
         # Validate action
         valid_actions = ['resolve', 'false_positive', 'assign']
         if action not in valid_actions:
             return JsonResponse({'error': f'Invalid action. Must be one of: {", ".join(valid_actions)}'}, status=400)
             
-        # Process each alert
-        for alert_id in alert_ids:
-            try:
-                alert = Alert.objects.get(alert_id=alert_id)
+        user_email = request.user.email
+        timestamp = datetime.now(timezone.utc)
+        success_count = 0
+        
+        # Perform Bulk Updates
+        # We use .update() to bypass the expensive Alert.save() method which recalculates stats
+        
+        if action == 'resolve':
+            note_doc = {
+                "timestamp": timestamp,
+                "analyst": user_email,
+                "note": f"Resolved: {note}" if note else "Resolved"
+            }
+            
+            success_count = Alert.objects.filter(alert_id__in=alert_ids).update(
+                set__alert_status="RESOLVED",
+                set__resolved_at=timestamp,
+                push__notes=note_doc
+            )
+            
+        elif action == 'false_positive':
+            note_doc = {
+                "timestamp": timestamp,
+                "analyst": user_email,
+                "note": f"False Positive: {note}" if note else "Marked as False Positive"
+            }
+            
+            success_count = Alert.objects.filter(alert_id__in=alert_ids).update(
+                set__alert_status="FALSE_POSITIVE",
+                set__resolved_at=timestamp,
+                push__notes=note_doc
+            )
+            
+        elif action == 'assign':
+            if not assignee:
+                return JsonResponse({'error': 'Missing assignee email'}, status=400)
                 
-                if action == 'resolve':
-                    alert.mark_resolved(request.user.email, note)
-                elif action == 'false_positive':
-                    alert.mark_false_positive(request.user.email, note)
-                elif action == 'assign':
-                    if not assignee:
-                        errors.append(f"{alert_id}: Missing assignee email")
-                        continue
-                    alert.assign_to(assignee)
-                    if note:
-                        alert.add_note(request.user.email, f"Bulk assignment note: {note}")
-                        
-                success_count += 1
-            except Alert.DoesNotExist:
-                errors.append(f"{alert_id}: Not found")
-            except Exception as e:
-                errors.append(f"{alert_id}: {str(e)}")
+            note_doc = {
+                "timestamp": timestamp,
+                "analyst": user_email,
+                "note": f"Bulk assignment note: {note}" if note else f"Assigned to {assignee}"
+            }
+            
+            success_count = Alert.objects.filter(alert_id__in=alert_ids).update(
+                set__assigned_analyst=assignee,
+                set__alert_status="INVESTIGATING",
+                push__notes=note_doc
+            )
+        
+        # If success_count is 0, it might mean IDs were invalid or not found
+        if success_count == 0 and len(alert_ids) > 0:
+             # Double check if any exist to give better error
+             existing = Alert.objects.filter(alert_id__in=alert_ids).count()
+             if existing == 0:
+                 return JsonResponse({'error': 'No matching alerts found to update'}, status=404)
         
         return JsonResponse({
             'success_count': success_count,
             'total_requested': len(alert_ids),
-            'errors': errors
+            'errors': [] # Bulk update doesn't give per-item errors, but it's atomic-ish
         })
         
     except json.JSONDecodeError:

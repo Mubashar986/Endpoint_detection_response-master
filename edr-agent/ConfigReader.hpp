@@ -24,6 +24,7 @@ public:
     
     bool hasHttpConfig();
     bool hasWebSocketConfig();
+    bool isHttpPollingDisabled();
 
 private:
     std::filesystem::path configFilePath;

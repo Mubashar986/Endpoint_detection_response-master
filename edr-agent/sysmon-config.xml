@@ -1,18 +1,54 @@
-<Sysmon schemaversion="4.81">
+<Sysmon schemaversion="4.90">
+  <HashAlgorithms>SHA256</HashAlgorithms>
+  <DnsLookup>False</DnsLookup>
+  <CheckRevocation/>
+
   <EventFiltering>
-    <!-- Process Creation: Event ID 1 (Log all processes) -->
-    <ProcessCreate onmatch="include">
-      <Image condition="is">*</Image>
-    </ProcessCreate>
-    
-    <!-- Network Connection: Event ID 3 (Log all connections) -->
-    <NetworkConnect onmatch="include">
-      <Image condition="is">*</Image>
-    </NetworkConnect>
-    
-    <!-- File Creation: Event ID 11 (Log all file creations) -->
-    <FileCreate onmatch="include">
-      <Image condition="is">*</Image>
-    </FileCreate>
+    <!-- Event ID 1: Process Creation -->
+    <RuleGroup name="ProcessCreate" groupRelation="or">
+      <ProcessCreate onmatch="include">
+        <Image condition="begin with">C:\</Image>
+      </ProcessCreate>
+    </RuleGroup>
+
+    <!-- Event ID 3: Network Connection -->
+    <RuleGroup name="NetworkConnect" groupRelation="or">
+      <NetworkConnect onmatch="include">
+        <Initiated condition="is">true</Initiated>
+      </NetworkConnect>
+    </RuleGroup>
+
+    <!-- Event ID 5: Process Termination -->
+    <RuleGroup name="ProcessTerminate" groupRelation="or">
+      <ProcessTerminate onmatch="include">
+        <Image condition="begin with">C:\</Image>
+      </ProcessTerminate>
+    </RuleGroup>
+
+    <!-- Event ID 11: File Creation -->
+    <RuleGroup name="FileCreate" groupRelation="or">
+      <FileCreate onmatch="include">
+        <TargetFilename condition="contains">Temp</TargetFilename>
+        <TargetFilename condition="contains">AppData</TargetFilename>
+        <TargetFilename condition="end with">.exe</TargetFilename>
+        <TargetFilename condition="end with">.dll</TargetFilename>
+        <TargetFilename condition="end with">.ps1</TargetFilename>
+      </FileCreate>
+    </RuleGroup>
+
+    <!-- Event ID 12-14: Registry Events -->
+    <RuleGroup name="RegistryEvent" groupRelation="or">
+      <RegistryEvent onmatch="include">
+        <TargetObject condition="contains">CurrentVersion\Run</TargetObject>
+      </RegistryEvent>
+    </RuleGroup>
+
+    <!-- Event ID 22: DNS Query -->
+    <RuleGroup name="DnsQuery" groupRelation="or">
+      <DnsQuery onmatch="exclude">
+        <QueryName condition="end with">microsoft.com</QueryName>
+        <QueryName condition="end with">windows.com</QueryName>
+      </DnsQuery>
+    </RuleGroup>
   </EventFiltering>
 </Sysmon>

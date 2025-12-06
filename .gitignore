@@ -68,8 +68,17 @@ logs/
 temp/
 tmp/
 
+
 # Secrets
 *.key
 *.pem
 secrets/
 auth.secret
+
+# Documentation (generated)
+documention/
+# EDR Agent build artifacts
+edr-agent/build/
+edr-agent/vendor/
+edr-agent/.vs/
+

@@ -517,6 +517,14 @@
         <h4 class="text-center mb-3" id="responseModalTitle">Confirm Response Action</h4>
         <p class="text-center text-muted mb-4" id="responseModalMessage">Are you sure you want to proceed?</p>
 
+        <!-- PID Input (only for Kill Process) -->
+        <div class="mb-3" id="pidInputContainer" style="display: none;">
+            <label class="form-label">Process ID (PID) to kill:</label>
+            <input type="number" class="form-control" id="pidInput"
+                placeholder="Enter the PID of the process to terminate" style="border-radius: 15px; padding: 12px;">
+            <small class="text-muted">💡 You can find the PID in Task Manager or the test script output</small>
+        </div>
+
         <!-- Reason Input -->
         <div class="mb-4">
             <label class="form-label">Reason for Action:</label>
@@ -556,28 +564,45 @@
         const title = document.getElementById('responseModalTitle');
         const message = document.getElementById('responseModalMessage');
         const btn = document.getElementById('confirmResponseBtn');
+        const pidInputContainer = document.getElementById('pidInputContainer');
+        const pidInput = document.getElementById('pidInput');
 
+        // Show/hide PID input based on action
         if (action === 'kill') {
+            pidInputContainer.style.display = 'block';
+            // Pre-fill with alert PID if available, but user can change it
+            pidInput.value = currentPid || '';
+
             icon.className = 'modal-icon danger';
             icon.innerHTML = '<i class="fas fa-skull"></i>';
             title.textContent = 'KILL PROCESS';
-            message.innerHTML = `Are you sure you want to <strong>TERMINATE</strong> process <code>${currentPid}</code> on <code>${currentAgentId}</code>?`;
+
+            // Show different message based on whether alert has PID
+            if (currentPid && currentPid !== 'None') {
+                message.innerHTML = `Kill process <code>${currentPid}</code> on <code>${currentAgentId}</code>?<br><small class="text-muted">💡 Leave empty to use alert PID, or enter a different PID</small>`;
+            } else {
+                message.innerHTML = `Enter the PID of the process to kill on <code>${currentAgentId}</code>.<br><small class="text-danger">⚠️ No PID in alert - manual entry required</small>`;
+            }
             btn.className = 'btn btn-danger';
             btn.textContent = 'Kill Process';
-        } else if (action === 'isolate') {
-            icon.className = 'modal-icon warning';
-            icon.innerHTML = '<i class="fas fa-network-wired"></i>';
-            title.textContent = 'ISOLATE HOST';
-            message.innerHTML = `Are you sure you want to <strong>ISOLATE</strong> host <code>${currentAgentId}</code> from the network?`;
-            btn.className = 'btn btn-warning';
-            btn.textContent = 'Isolate Host';
-        } else if (action === 'deisolate') {
-            icon.className = 'modal-icon success';
-            icon.innerHTML = '<i class="fas fa-wifi"></i>';
-            title.textContent = 'DE-ISOLATE HOST';
-            message.innerHTML = `Are you sure you want to <strong>RESTORE NETWORK</strong> for host <code>${currentAgentId}</code>?`;
-            btn.className = 'btn btn-success';
-            btn.textContent = 'Restore Network';
+        } else {
+            pidInputContainer.style.display = 'none';
+
+            if (action === 'isolate') {
+                icon.className = 'modal-icon warning';
+                icon.innerHTML = '<i class="fas fa-network-wired"></i>';
+                title.textContent = 'ISOLATE HOST';
+                message.innerHTML = `Are you sure you want to <strong>ISOLATE</strong> host <code>${currentAgentId}</code> from the network?`;
+                btn.className = 'btn btn-warning';
+                btn.textContent = 'Isolate Host';
+            } else if (action === 'deisolate') {
+                icon.className = 'modal-icon success';
+                icon.innerHTML = '<i class="fas fa-wifi"></i>';
+                title.textContent = 'DE-ISOLATE HOST';
+                message.innerHTML = `Are you sure you want to <strong>RESTORE NETWORK</strong> for host <code>${currentAgentId}</code>?`;
+                btn.className = 'btn btn-success';
+                btn.textContent = 'Restore Network';
+            }
         }
 
         modal.classList.add('show');
@@ -602,12 +627,16 @@
 
         if (currentResponseAction === 'kill') {
             url = '/api/v1/response/kill_process/';
-            payload.pid = currentPid;
-            payload.alert_id = '{{ alert.alert_id }}';  // For auto-resolve
-            if (!payload.pid || payload.pid === 'None') {
-                showToast('❌ Process ID (PID) not found in alert evidence. Cannot kill process.', 'error');
+            // Use PID from input if entered, otherwise use alert PID
+            const userPid = document.getElementById('pidInput').value.trim();
+            const pidToUse = userPid || currentPid;  // Input takes priority, fallback to alert PID
+
+            if (!pidToUse || pidToUse === 'None') {
+                showToast('❌ No PID available. Please enter a Process ID to kill.', 'error');
                 return;
             }
+            payload.pid = parseInt(pidToUse, 10);
+            payload.alert_id = '{{ alert.alert_id }}';  // For auto-resolve
         } else if (currentResponseAction === 'isolate') {
             url = '/api/v1/response/isolate_host/';
         } else if (currentResponseAction === 'deisolate') {

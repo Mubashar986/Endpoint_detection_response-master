@@ -848,29 +848,49 @@
         document.getElementById('bulkProcessing').style.display = 'none';
     });
 
-    // Helper to get CSRF token
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
+    const searchFocused = document.activeElement === document.getElementById('alertSearchBox');
+
+    if (alertsSelected || modalOpen || searchFocused) {
+        isPaused = true;
+        refreshBadge.innerHTML = '<i class="fas fa-pause-circle"></i> Auto-refresh: <span class="badge bg-warning text-dark">Paused</span>';
+    } else {
+        isPaused = false;
+        // Restore original UI structure if resuming
+        if (refreshBadge.textContent.includes('Paused')) {
+            refreshBadge.innerHTML = 'Auto-refresh: <span id="countdown" class="badge bg-primary">' + countdown + '</span>s';
         }
-        return cookieValue;
     }
 
-    // Countdown
-    let countdown = 30;
+
+    // Check for pause state interactions
+    document.getElementById('alertSearchBox').addEventListener('focus', updateRefreshState);
+    document.getElementById('alertSearchBox').addEventListener('blur', updateRefreshState);
+    // Note: Checkbox changes are handled in updateBulkActionBar
+    // Note: Modal events are handled below
+
     setInterval(() => {
-        countdown--;
-        document.getElementById('countdown').textContent = countdown;
-        if (countdown <= 0) location.reload();
+        if (!isPaused) {
+            countdown--;
+            const cdEl = document.getElementById('countdown');
+            if (cdEl) cdEl.textContent = countdown;
+
+            if (countdown <= 0) {
+                location.reload();
+            }
+        }
     }, 1000);
+
+    // Hook into existing functions to trigger state updates
+    const originalUpdateBulk = updateBulkActionBar;
+    updateBulkActionBar = function () {
+        originalUpdateBulk();
+        updateRefreshState();
+    };
+
+    const bulkModalEl = document.getElementById('bulkActionModal');
+    bulkModalEl.addEventListener('shown.bs.modal', updateRefreshState);
+    bulkModalEl.addEventListener('hidden.bs.modal', updateRefreshState);
+
 </script>
 
 {% endblock %}

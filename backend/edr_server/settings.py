@@ -38,6 +38,8 @@ ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').sp
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',  # ASGI server - MUST be first for WebSocket support
+    'channels',  # Django Channels for WebSocket handling
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -61,7 +63,22 @@ REST_FRAMEWORK = {
     ],
 }
 
+# ============================================
+# Django Channels Configuration
+# ============================================
+# Tell Django to use ASGI instead of WSGI
+ASGI_APPLICATION = 'edr_server.asgi.application'
 
+# Channel Layer using Redis for message passing between consumers
+# Required for group messaging (sending commands to all agents)
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [(os.environ.get('REDIS_HOST', '127.0.0.1'), 6379)],
+        },
+    },
+}
 
 MIDDLEWARE = [
     'edr_server.middleware.DecompressMiddleware',  # Custom Gzip Middleware

@@ -13,6 +13,46 @@ from .ratelimit_utils import ratelimit_with_logging
 from django.conf import settings
 
 # ==========================================
+# WebSocket Command Push
+# ==========================================
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
+
+def push_command_via_websocket(command):
+    """
+    Push a command to all connected agents via WebSocket.
+    
+    This is called after saving a command to MongoDB. It sends the command
+    immediately to all agents in the 'agents' group, eliminating polling delay.
+    
+    Args:
+        command: PendingCommand instance with command_id, command_type, parameters
+    """
+    channel_layer = get_channel_layer()
+    
+    if channel_layer is None:
+        print("[WebSocket] Warning: No channel layer configured, command not pushed")
+        return
+    
+    # Build the command message
+    message = {
+        "type": "agent_command",  # This calls AgentConsumer.agent_command()
+        "command": {
+            "type": "command",
+            "command_id": command.command_id,
+            "action": command.command_type,
+            "parameters": command.parameters
+        }
+    }
+    
+    try:
+        # Send to all agents in the 'agents' group
+        async_to_sync(channel_layer.group_send)("agents", message)
+        print(f"[WebSocket] Command {command.command_id} pushed to agents group")
+    except Exception as e:
+        print(f"[WebSocket] Error pushing command: {e}")
+
+# ==========================================
 # AGENT APIs (Polling & Reporting)
 # ==========================================
 
@@ -144,6 +184,9 @@ def trigger_kill_process(request):
     )
     command.save()
     
+    # Push command to connected agents via WebSocket (instant delivery)
+    push_command_via_websocket(command)
+    
     # Create Audit Log
     ResponseAction(
         user=request.user.email or request.user.username,
@@ -187,6 +230,9 @@ def trigger_isolate_host(request):
     )
     command.save()
     
+    # Push command to connected agents via WebSocket (instant delivery)
+    push_command_via_websocket(command)
+    
     # Create Audit Log
     ResponseAction(
         user=request.user.email or request.user.username,
@@ -229,6 +275,9 @@ def trigger_deisolate_host(request):
         expires_at=timezone.now() + timedelta(minutes=5)
     )
     command.save()
+    
+    # Push command to connected agents via WebSocket (instant delivery)
+    push_command_via_websocket(command)
     
     # Create Audit Log
     ResponseAction(

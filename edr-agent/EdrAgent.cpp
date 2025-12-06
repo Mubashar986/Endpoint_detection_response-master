@@ -5,7 +5,9 @@
 #include "HttpClient.hpp"          // HTTP client for Django
 #include "CommandProcessor.hpp"    // Response Actions
 #include "EventConverter.hpp"      // Event format converter
-// #include "WebSocketClient.hpp"  // WebSocket (uncomment when needed)
+#ifdef ENABLE_WEBSOCKET
+#include "WebSocketClient.hpp"     // WebSocket for real-time commands
+#endif
 #include "ConfigReader.hpp"
 #include "pugixml.hpp"
 
@@ -31,7 +33,9 @@ std::string sanitizeUtf8(const std::string& input);
 // ============================================
 // Global Variables
 // ============================================
-// WebSocketClient* g_webSocketClient = nullptr;  // For future use (commented)
+#ifdef ENABLE_WEBSOCKET
+WebSocketClient* g_webSocketClient = nullptr;  // WebSocket for real-time commands
+#endif
 HttpClient* g_httpClient = nullptr;                 // Active now
 
 // ============================================
@@ -79,25 +83,39 @@ int main() {
         std::cout << "  ✓ HTTP client initialized" << std::endl;
         std::cout << "  → Target: " << httpServer << ":" << httpPort << apiPath << std::endl;
         
-        // Step 2.5: Start Command Polling
-        std::cout << "\n[2.5/4] Starting Command Polling Service..." << std::endl;
-        CommandProcessor::startCommandPolling();
+        // Step 2.5: Start Command Polling (unless disabled for WebSocket-only mode)
+        bool disablePolling = configReader.isHttpPollingDisabled();
+        if (!disablePolling) {
+            std::cout << "\n[2.5/4] Starting Command Polling Service..." << std::endl;
+            CommandProcessor::startCommandPolling();
+        } else {
+            std::cout << "\n[2.5/4] HTTP Command Polling DISABLED (WebSocket-only mode)" << std::endl;
+            std::cout << "  ⚠️  Commands will only be received via WebSocket" << std::endl;
+        }
 
-        // Step 3: WebSocket (Ready but not active)
+        // Step 3: WebSocket (Real-time Commands)
+#ifdef ENABLE_WEBSOCKET
         if (hasWebSocket) {
-            std::cout << "\n[WebSocket] Configuration found but not active" << std::endl;
-            std::cout << "  To enable: Uncomment WebSocket code in EdrAgent.cpp" << std::endl;
-            
-            // UNCOMMENT THIS BLOCK WHEN READY TO USE WEBSOCKET:
-            /*
+            std::cout << "\n[3/4] Initializing WebSocket client..." << std::endl;
             std::string wsUri = configReader.getServerUri();
-            WebSocketClient webSocketClient;
+            
+            // Create WebSocket client on heap so it persists
+            static WebSocketClient webSocketClient;
             g_webSocketClient = &webSocketClient;
             webSocketClient.connect(wsUri);
-            std::cout << "  ✓ WebSocket client connected to: " << wsUri << std::endl;
-            Sleep(2000); // Wait for connection
-            */
+            
+            std::cout << "  ✓ WebSocket connecting to: " << wsUri << std::endl;
+            std::cout << "  → Commands will be received in real-time" << std::endl;
+            
+            // Give time for connection to establish
+            Sleep(2000);
         }
+#else
+        if (hasWebSocket) {
+            std::cout << "\n[WebSocket] Configuration found but not compiled" << std::endl;
+            std::cout << "  To enable: Rebuild with -DENABLE_WEBSOCKET=ON" << std::endl;
+        }
+#endif
         
         // Step 4: Subscribe to Windows Event Logs
         std::cout << "\n[3/4] Subscribing to Windows Event Logs..." << std::endl;

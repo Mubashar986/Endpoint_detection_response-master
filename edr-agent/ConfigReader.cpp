@@ -202,3 +202,12 @@ bool ConfigReader::hasWebSocketConfig()
     // Check if WebSocket configuration exists
     return jsonObject.find("uri") != jsonObject.end();
 }
+
+bool ConfigReader::isHttpPollingDisabled()
+{
+    // Check if HTTP polling is disabled (for WebSocket-only testing)
+    if (jsonObject.find("disable_http_polling") != jsonObject.end()) {
+        return jsonObject["disable_http_polling"].get<bool>();
+    }
+    return false;  // Default: HTTP polling enabled
+}
