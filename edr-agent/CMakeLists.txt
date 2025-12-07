@@ -5,6 +5,19 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ==========================================
+# Version Header Generation
+# ==========================================
+# Generate version.h from version.h.in template
+# This creates a single source of truth for agent version
+configure_file(
+    ${CMAKE_SOURCE_DIR}/version.h.in
+    ${CMAKE_BINARY_DIR}/version.h
+    @ONLY
+)
+# Include build directory for generated version.h
+include_directories(${CMAKE_BINARY_DIR})
+
+# ==========================================
 # Options
 # ==========================================
 option(ENABLE_WEBSOCKET "Build with WebSocket support" OFF)
@@ -48,6 +61,7 @@ set(AGENT_SOURCES
     EventConverter.cpp
     SimpleZstd.cpp
     CommandProcessor.cpp
+    AgentId.cpp
 )
 
 if(ENABLE_WEBSOCKET)

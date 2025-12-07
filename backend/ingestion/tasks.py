@@ -1,6 +1,8 @@
 from celery import shared_task
 from .models import TelemetryEvent
-from .rule_engine import DetectionEngine  # NEW: Import rule engine
+from .models_mongo import Agent  # Agent tracking
+from .rule_engine import DetectionEngine
+from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
@@ -23,6 +25,26 @@ def telemetry_ingest(data):
             raw_data=data
         )
         event.save()
+        
+        # Track agent metadata
+        try:
+            agent_id = data.get('agent_id')
+            agent_version = data.get('agent_version', 'unknown')
+            hostname = data.get('host', {}).get('hostname', 'unknown')
+            
+            logger.info(f"Agent tracking: {agent_id[:12]}... version={agent_version}, hostname={hostname}")
+            
+            Agent.objects(agent_id=agent_id).update_one(
+                set__hostname=hostname,
+                set__agent_version=agent_version,
+                set__last_seen=datetime.utcnow(),
+                set__is_online=True,
+                set_on_insert__first_seen=datetime.utcnow(),
+                upsert=True
+            )
+        except Exception as agent_error:
+            logger.warning(f"Failed to update agent: {agent_error}")
+        
         if event.event_type == 'process':
             cmd = event.raw_data.get('process', {}).get('command_line', '')
             if 'powershell' in cmd.lower():

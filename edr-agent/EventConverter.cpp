@@ -1,4 +1,5 @@
 #include "EventConverter.hpp"
+#include "AgentId.hpp"    // UUID-based agent identification
 #include <iostream>      // For std::cout, std::cerr
 #include <Windows.h>     // For GetComputerNameA, DWORD
 #include <random>
@@ -6,6 +7,11 @@
 #include <iomanip>
 #include <chrono>
 #include <ctime>
+
+// External reference to global agent ID (set once at startup)
+extern std::string g_agentId;
+// External reference to global agent version  
+extern std::string g_agentVersion;
 
 std::string EventConverter::getHostname() {
     char hostname[256];
@@ -107,7 +113,9 @@ nlohmann::json EventConverter::sysmonEventToDjangoFormat(const nlohmann::json& s
         
         
      
-        djangoEvent["agent_id"] = getHostname();
+        // Use UUID-based agent ID (not hostname)
+        // hostname is still included in the 'host' object for display purposes
+        djangoEvent["agent_id"] = g_agentId;  // UUID from AgentId module
         djangoEvent["event_id"] = generateEventId();
         djangoEvent["event_type"] = eventType;
         
@@ -115,7 +123,9 @@ nlohmann::json EventConverter::sysmonEventToDjangoFormat(const nlohmann::json& s
 
 
         djangoEvent["severity"] = determineSeverity(eventId);
-        djangoEvent["version"] = "1.0";
+        djangoEvent["version"] = "1.0";  // Schema/format version
+        djangoEvent["agent_version"] = g_agentVersion;  // Agent software version for updates
+        std::cout << "[EventConverter] agent_version set to: " << g_agentVersion << std::endl;
         
 
         // here we may need to add the different os_version here 

@@ -3,6 +3,9 @@
 #include "ConfigReader.hpp"
 #include "HttpClient.hpp"
 #include <iostream>
+
+// External reference to global agent ID (UUID from EdrAgent.cpp)
+extern std::string g_agentId;
 #include <sstream>
 #include <iomanip>
 #include <chrono>
@@ -343,7 +346,7 @@ namespace CommandProcessor
         if (serverUrl.back() == '/') serverUrl.pop_back();
 
         client.addHeader("Authorization", "Token " + authToken);
-        client.addHeader("X-Agent-ID", getHostName()); // Use hostname as Agent ID for MVP
+        client.addHeader("X-Agent-ID", g_agentId); // Use UUID-based Agent ID
 
         std::cout << "[CommandPoll] Thread started. Polling " << serverUrl << std::endl;
 

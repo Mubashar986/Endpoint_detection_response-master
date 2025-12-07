@@ -5,6 +5,7 @@
 #include "HttpClient.hpp"          // HTTP client for Django
 #include "CommandProcessor.hpp"    // Response Actions
 #include "EventConverter.hpp"      // Event format converter
+#include "AgentId.hpp"             // UUID-based agent identification
 #ifdef ENABLE_WEBSOCKET
 #include "WebSocketClient.hpp"     // WebSocket for real-time commands
 #endif
@@ -33,6 +34,11 @@ std::string sanitizeUtf8(const std::string& input);
 // ============================================
 // Global Variables
 // ============================================
+#include "version.h"  // CMake-generated version header
+
+std::string g_agentId;  // UUID-based agent identifier (set once at startup)
+std::string g_agentVersion = AGENT_VERSION;  // From CMake (single source of truth)
+
 #ifdef ENABLE_WEBSOCKET
 WebSocketClient* g_webSocketClient = nullptr;  // WebSocket for real-time commands
 #endif
@@ -65,6 +71,15 @@ int main() {
             std::cerr << "Please add http_server, http_port, api_path, and auth_token to config.json" << std::endl;
             return 1;
         }
+        
+        // Step 1.5: Initialize Unique Agent ID
+        std::cout << "\n[1.5/4] Initializing Agent ID..." << std::endl;
+        std::filesystem::path configDir = std::filesystem::path("config.json").parent_path();
+        if (configDir.empty()) {
+            configDir = std::filesystem::current_path();
+        }
+        g_agentId = AgentId::getOrCreate(configDir);
+        std::cout << "  ✓ Agent ID: " << g_agentId << std::endl;
         
         // Step 2: Initialize HTTP Client
         std::cout << "\n[2/4] Initializing HTTP client..." << std::endl;

@@ -61,4 +61,8 @@ urlpatterns = [
     path('dashboard/alerts/<str:alert_id>/', dashboard_views.alert_detail_view, name='alert_detail'),
     path('dashboard/rules/', dashboard_views.rules_view, name='rules'),
     path('dashboard/events/', dashboard_views.events_view, name='events'),
+    
+    # ========== AGENTS MANAGEMENT ==========
+    path('dashboard/agents/', dashboard_views.agents_list_view, name='agents_list'),
+    path('api/v1/dashboard/agents/', dashboard_views.agents_api, name='agents_api'),
 ]

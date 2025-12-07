@@ -25,6 +25,9 @@ public:
     bool hasHttpConfig();
     bool hasWebSocketConfig();
     bool isHttpPollingDisabled();
+    
+    // Version info
+    int getConfigVersion();
 
 private:
     std::filesystem::path configFilePath;

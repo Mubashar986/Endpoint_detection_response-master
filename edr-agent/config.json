@@ -1,11 +1,12 @@
 {
+  "config_version": 1,
   "http_server": "localhost",
   "http_port": 8000,
   "api_path": "/api/v1/telemetry/",
   "auth_token": "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b",
   "uri": "ws://localhost:8000/ws/agent/",
   "websocket_uri": "ws://localhost:8000/ws/agent/",
-  "disable_http_polling": true,
+  "disable_http_polling": false,
   "event_processor": {
     "source": [
       {

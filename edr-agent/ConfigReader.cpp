@@ -211,3 +211,13 @@ bool ConfigReader::isHttpPollingDisabled()
     }
     return false;  // Default: HTTP polling enabled
 }
+
+int ConfigReader::getConfigVersion()
+{
+    // Config version for schema migrations
+    // Default to 1 for backward compatibility with old configs
+    if (jsonObject.find("config_version") != jsonObject.end()) {
+        return jsonObject["config_version"].get<int>();
+    }
+    return 1;  // Default version
+}

@@ -24,7 +24,7 @@ services:
       - SECRET_KEY=your-secret-key-change-in-production
       - MONGODB_URI=mongodb://mongodb:27017/edr_telemetry
       - REDIS_URL=redis://redis:6379/0
-      - ALLOWED_HOSTS=*
+      - DJANGO_ALLOWED_HOSTS=*
     depends_on:
       - mongodb
       - redis

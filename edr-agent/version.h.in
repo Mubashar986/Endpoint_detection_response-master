@@ -1,0 +1,14 @@
+// AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
+// Generated from version.h.in by CMake
+#pragma once
+// ==========================================
+// Agent Version Information
+// ==========================================
+// Full version string (e.g., "1.0.0")
+#define AGENT_VERSION "@PROJECT_VERSION@"
+// Individual version components
+#define AGENT_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define AGENT_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define AGENT_VERSION_PATCH @PROJECT_VERSION_PATCH@
+// Build metadata (optional)
+#define AGENT_BUILD_TYPE "@CMAKE_BUILD_TYPE@"

@@ -1,4 +1,4 @@
-from mongoengine import Document, StringField, DictField, DateTimeField, IntField
+from mongoengine import Document, StringField, DictField, DateTimeField, IntField, BooleanField
 from datetime import datetime
 import uuid
 
@@ -73,3 +73,40 @@ class ResponseAction(Document):
             'target_agent'
         ]
     }
+
+
+class Agent(Document):
+    """
+    Registered agent metadata.
+    Updated on every telemetry event to track agent status and version.
+    """
+    # Unique identifier (UUID from agent)
+    agent_id = StringField(required=True, unique=True)
+    
+    # Display name
+    hostname = StringField()
+    
+    # Software version running on agent
+    agent_version = StringField(default='unknown')
+    
+    # Status tracking
+    first_seen = DateTimeField()
+    last_seen = DateTimeField()
+    
+    # Calculated status
+    is_online = BooleanField(default=False)
+    
+    # Configuration version
+    config_version = IntField(default=1)
+    
+    meta = {
+        'collection': 'agents',
+        'indexes': [
+            'agent_id',
+            '-last_seen',
+            'is_online'
+        ]
+    }
+    
+    def __str__(self):
+        return f"Agent {self.agent_id[:8]}... v{self.agent_version}"

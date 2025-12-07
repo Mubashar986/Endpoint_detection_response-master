@@ -10,45 +10,45 @@
         border-radius: 20px;
         padding: 30px;
         margin-bottom: 30px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
     }
-    
+
     .search-box-modern {
         border-radius: 30px;
         border: 2px solid #e0e0e0;
         padding: 15px 25px;
         font-size: 15px;
         transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
     }
-    
+
     .search-box-modern:focus {
         border-color: #667eea;
         box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
         outline: none;
     }
-    
+
     .events-table-wrapper {
         background: white;
         border-radius: 20px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
         overflow: hidden;
     }
-    
+
     .table-modern thead {
         background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
     }
-    
+
     .table-modern tbody tr {
         transition: all 0.2s ease;
         border-bottom: 1px solid #f0f0f0;
     }
-    
+
     .table-modern tbody tr:hover {
         background: linear-gradient(90deg, #f8f9fa 0%, #e3f2fd 100%);
         transform: scale(1.01);
     }
-    
+
     .event-badge {
         border-radius: 20px;
         padding: 5px 12px;
@@ -56,37 +56,47 @@
         font-weight: 600;
         text-transform: uppercase;
     }
-    
+
     .badge-process {
         background: linear-gradient(135deg, #667eea, #764ba2);
         color: white;
     }
-    
+
     .badge-network {
         background: linear-gradient(135deg, #11998e, #38ef7d);
         color: white;
     }
-    
+
     .badge-file {
         background: linear-gradient(135deg, #ffd93d, #ffb400);
         color: #2d3436;
     }
-    
-    .severity-info { color: #17a2b8; }
-    .severity-warning { color: #ffc107; font-weight: 600; }
-    .severity-error { color: #dc3545; font-weight: 600; }
+
+    .severity-info {
+        color: #17a2b8;
+    }
+
+    .severity-warning {
+        color: #ffc107;
+        font-weight: 600;
+    }
+
+    .severity-error {
+        color: #dc3545;
+        font-weight: 600;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid">
-    
+
     <!-- Header -->
     <div class="events-header">
         <div class="row align-items-center">
             <div class="col-md-8">
                 <h2 class="mb-2">
-                    <i class="fas fa-stream"></i> 
+                    <i class="fas fa-stream"></i>
                     Telemetry Events Log
                 </h2>
                 <p class="mb-0" style="opacity: 0.9;">
@@ -104,11 +114,8 @@
     <!-- Search & Filter -->
     <div class="row mb-4">
         <div class="col-md-8 mb-3">
-            <input type="text" 
-                   class="form-control search-box-modern" 
-                   id="eventSearch" 
-                   placeholder="🔍 Search events by ID, agent, type, or severity..."
-                   onkeyup="filterEvents()">
+            <input type="text" class="form-control search-box-modern" id="eventSearch"
+                placeholder="🔍 Search events by ID, agent, type, or severity..." onkeyup="filterEvents()">
         </div>
         <div class="col-md-4 mb-3">
             <select class="form-control search-box-modern" id="typeFilter" onchange="filterEvents()">
@@ -143,16 +150,19 @@
                             </code>
                         </td>
                         <td style="padding: 15px 20px;">
-                            <strong>{{ event.agent_id }}</strong>
+                            <strong>{{ event.agent_id|truncatechars:12 }}</strong>
+                            {% if event.raw_data.agent_version %}
+                            <br><small class="text-muted">v{{ event.raw_data.agent_version }}</small>
+                            {% endif %}
                         </td>
                         <td style="padding: 15px 20px;">
                             <span class="event-badge badge-{{ event.event_type }}">
                                 {% if event.event_type == 'process' %}
-                                    <i class="fas fa-cog"></i>
+                                <i class="fas fa-cog"></i>
                                 {% elif event.event_type == 'network' %}
-                                    <i class="fas fa-network-wired"></i>
+                                <i class="fas fa-network-wired"></i>
                                 {% elif event.event_type == 'file' %}
-                                    <i class="fas fa-file"></i>
+                                <i class="fas fa-file"></i>
                                 {% endif %}
                                 {{ event.event_type|upper }}
                             </span>
@@ -160,9 +170,9 @@
                         <td style="padding: 15px 20px;">
                             <span class="severity-{{ event.severity }}">
                                 {% if event.severity == 'warning' or event.severity == 'error' %}
-                                    <i class="fas fa-exclamation-triangle"></i>
+                                <i class="fas fa-exclamation-triangle"></i>
                                 {% else %}
-                                    <i class="fas fa-info-circle"></i>
+                                <i class="fas fa-info-circle"></i>
                                 {% endif %}
                                 {{ event.severity|upper }}
                             </span>
@@ -189,7 +199,7 @@
                 </tbody>
             </table>
         </div>
-        
+
         {% if events %}
         <div class="p-4 bg-light" style="border-top: 1px solid #e0e0e0;">
             <div class="d-flex justify-content-between align-items-center">
@@ -207,42 +217,42 @@
 </div>
 
 <script>
-function filterEvents() {
-    const searchInput = document.getElementById('eventSearch').value.toUpperCase();
-    const typeFilter = document.getElementById('typeFilter').value.toUpperCase();
-    const table = document.getElementById('eventsTable');
-    const rows = table.getElementsByTagName('tr');
+    function filterEvents() {
+        const searchInput = document.getElementById('eventSearch').value.toUpperCase();
+        const typeFilter = document.getElementById('typeFilter').value.toUpperCase();
+        const table = document.getElementById('eventsTable');
+        const rows = table.getElementsByTagName('tr');
 
-    for (let i = 1; i < rows.length; i++) {
-        const cells = rows[i].getElementsByTagName('td');
-        let showRow = true;
-        
-        // Search filter
-        if (searchInput) {
-            let found = false;
-            for (let j = 0; j < cells.length; j++) {
-                if (cells[j] && cells[j].textContent.toUpperCase().indexOf(searchInput) > -1) {
-                    found = true;
-                    break;
+        for (let i = 1; i < rows.length; i++) {
+            const cells = rows[i].getElementsByTagName('td');
+            let showRow = true;
+
+            // Search filter
+            if (searchInput) {
+                let found = false;
+                for (let j = 0; j < cells.length; j++) {
+                    if (cells[j] && cells[j].textContent.toUpperCase().indexOf(searchInput) > -1) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) showRow = false;
+            }
+
+            // Type filter
+            if (typeFilter && showRow) {
+                const typeCell = cells[2];
+                if (typeCell && typeCell.textContent.toUpperCase().indexOf(typeFilter) === -1) {
+                    showRow = false;
                 }
             }
-            if (!found) showRow = false;
-        }
-        
-        // Type filter
-        if (typeFilter && showRow) {
-            const typeCell = cells[2];
-            if (typeCell && typeCell.textContent.toUpperCase().indexOf(typeFilter) === -1) {
-                showRow = false;
-            }
-        }
-        
-        rows[i].style.display = showRow ? '' : 'none';
-    }
-}
 
-console.log('📋 Events log page loaded');
-console.log('Total events:', {{ event_count }});
+            rows[i].style.display = showRow ? '' : 'none';
+        }
+    }
+
+    console.log('📋 Events log page loaded');
+    console.log('Total events:', {{ event_count }});
 </script>
 
 {% endblock %}

@@ -34,6 +34,14 @@ if not os.environ.get('DJANGO_SECRET_KEY') and not DEBUG:
 
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
+# CSRF Trusted Origins - required for ngrok and external access
+# Include ngrok wildcard domain for any ngrok URL
+CSRF_TRUSTED_ORIGINS = os.environ.get(
+    'CSRF_TRUSTED_ORIGINS', 
+    'https://*.ngrok-free.app,https://*.ngrok-free.dev,https://*.ngrok.io,http://localhost:8000'
+).split(',')
+
+
 
 # Application definition
 

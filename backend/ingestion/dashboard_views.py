@@ -27,6 +27,7 @@ from rest_framework.authentication import TokenAuthentication, SessionAuthentica
 
 from .models import TelemetryEvent
 from .detection_models import DetectionRule, Alert
+from .models_mongo import ResponseAction, Agent  # Agent tracking
 from .rbac_decorators import require_analyst_or_admin, can_toggle_rules, get_user_role, can_take_response_actions
 from .ratelimit_utils import ratelimit_with_logging
 from django.conf import settings
@@ -549,3 +550,76 @@ def bulk_alert_action(request):
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+# ========== AGENTS MANAGEMENT ==========
+
+@login_required
+def agents_list_view(request):
+    """
+    View for listing all registered agents with their versions.
+    """
+    from datetime import timedelta
+    import pytz
+    
+    agents_qs = Agent.objects.all().order_by('-last_seen')
+    agents = list(agents_qs)
+    
+    # Mark offline if not seen in 5 minutes
+    offline_threshold = timezone.now() - timedelta(minutes=5)
+    
+    for agent in agents:
+        if agent.last_seen:
+            # Ensure last_seen is timezone-aware before comparison
+            last_seen = agent.last_seen
+            if timezone.is_naive(last_seen):
+                last_seen = timezone.make_aware(last_seen, pytz.UTC)
+            agent.is_online_display = last_seen > offline_threshold
+            agent.last_seen_display = calculate_time_ago(agent.last_seen)
+        else:
+            agent.is_online_display = False
+            agent.last_seen_display = "Never"
+    
+    total_agents = len(agents)
+    online_agents = sum(1 for a in agents if getattr(a, 'is_online_display', False))
+    
+    context = {
+        'agents': agents,
+        'total_agents': total_agents,
+        'online_agents': online_agents,
+        'offline_agents': total_agents - online_agents
+    }
+    return render(request, 'dashboard/agents.html', context)
+
+
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+@ratelimit_with_logging(key='user', rate=settings.RATELIMIT_DASHBOARD_READ, method='GET')
+def agents_api(request):
+    """API endpoint for agent list as JSON."""
+    from datetime import timedelta
+    import pytz
+    
+    agents = Agent.objects.all().order_by('-last_seen')
+    offline_threshold = timezone.now() - timedelta(minutes=5)
+    
+    agents_data = []
+    for agent in agents:
+        # Ensure last_seen is timezone-aware before comparison
+        is_online = False
+        if agent.last_seen:
+            last_seen = agent.last_seen
+            if timezone.is_naive(last_seen):
+                last_seen = timezone.make_aware(last_seen, pytz.UTC)
+            is_online = last_seen > offline_threshold
+        agents_data.append({
+            'agent_id': agent.agent_id,
+            'hostname': agent.hostname,
+            'agent_version': agent.agent_version,
+            'last_seen': agent.last_seen.isoformat() if agent.last_seen else None,
+            'last_seen_ago': calculate_time_ago(agent.last_seen),
+            'is_online': is_online
+        })
+    
+    return JsonResponse({'count': len(agents_data), 'agents': agents_data})
