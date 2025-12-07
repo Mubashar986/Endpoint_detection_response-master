@@ -256,17 +256,21 @@ std::string HttpClient::POST(const std::string& endpoint, const std::string& dat
     return response;
 }
 
-bool HttpClient::sendTelemetry(const nlohmann::json& eventData) {
+VoidResult HttpClient::sendTelemetry(const nlohmann::json& eventData) {
     try {
         std::string jsonStr = eventData.dump();
-        return sendHttpPost(jsonStr);
+        if (sendHttpPost(jsonStr)) {
+            return VoidResult::success();
+        } else {
+            return VoidResult::failure(AgentError::NetworkSendFailed, "HTTP POST failed");
+        }
     } catch (const std::exception& e) {
         LOG_ERROR(std::string("Error: ") + e.what());
-        return false;
+        return VoidResult::failure(AgentError::NetworkSendFailed, e.what());
     }
 }
 
-bool HttpClient::sendTelemetryBatch(const std::vector<nlohmann::json>& events) {
+VoidResult HttpClient::sendTelemetryBatch(const std::vector<nlohmann::json>& events) {
     try {
         nlohmann::json batchJson = events;
         std::string jsonStr = batchJson.dump();
@@ -274,14 +278,22 @@ bool HttpClient::sendTelemetryBatch(const std::vector<nlohmann::json>& events) {
         std::vector<BYTE> compressedData;
         if (compressData(jsonStr, compressedData)) {
              LOG_DEBUG("Compressed " + std::to_string(jsonStr.size()) + " bytes to " + std::to_string(compressedData.size()) + " bytes");
-             return sendCompressedHttpPost(compressedData);
+             if (sendCompressedHttpPost(compressedData)) {
+                 return VoidResult::success();
+             } else {
+                 return VoidResult::failure(AgentError::NetworkSendFailed, "Compressed POST failed");
+             }
         } else {
              LOG_WARN("Compression failed, sending plain text");
-             return sendHttpPost(jsonStr);
+             if (sendHttpPost(jsonStr)) {
+                 return VoidResult::success();
+             } else {
+                 return VoidResult::failure(AgentError::NetworkSendFailed, "Plain text POST failed");
+             }
         }
     } catch (const std::exception& e) {
         LOG_ERROR(std::string("Error in batch send: ") + e.what());
-        return false;
+        return VoidResult::failure(AgentError::NetworkSendFailed, e.what());
     }
 }
 

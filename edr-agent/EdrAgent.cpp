@@ -277,21 +277,21 @@ DWORD WINAPI SubscriptionCallback(EVT_SUBSCRIBE_NOTIFY_ACTION action,
     switch (action) {
         case EvtSubscribeActionError:
             if (ERROR_EVT_QUERY_RESULT_STALE == (uintptr_t)hEvent) {
-                std::wcout << L"⚠️ Event records are missing" << std::endl;
+                LOG_WARN("Event records are missing");
             } else {
-                std::wcout << L"❌ Subscription error: " << (uintptr_t)hEvent << std::endl;
+                LOG_ERROR("Subscription error: " + std::to_string((uintptr_t)hEvent));
             }
             break;
 
         case EvtSubscribeActionDeliver:
             status = ProcessEvent(hEvent);
             if (ERROR_SUCCESS != status) {
-                std::cerr << "❌ Failed to process event" << std::endl;
+                LOG_ERROR("Failed to process event");
             }
             break;
 
         default:
-            std::wcout << L"⚠️ Unknown subscription action" << std::endl;
+            LOG_WARN("Unknown subscription action");
             break;
     }
 
@@ -310,7 +310,7 @@ DWORD ProcessEvent(EVT_HANDLE hEvent) {
         // Step 1: Convert event to XML
         status = EventToEventXml(hEvent, eventXml);
         if (status != ERROR_SUCCESS) {
-            std::cerr << "❌ Failed to convert event to XML (Error: " << status << ")" << std::endl;
+            LOG_ERROR("Failed to convert event to XML (Error: " + std::to_string(status) + ")");
             goto cleanup;
         }
 
@@ -320,7 +320,7 @@ DWORD ProcessEvent(EVT_HANDLE hEvent) {
         // Step 3: Convert XML to Sysmon JSON
         eventJson = EventXmlToEventJson(eventXml);
         if (eventJson.empty()) {
-            std::cerr << "⚠️ Event JSON conversion returned empty" << std::endl;
+            LOG_WARN("Event JSON conversion returned empty");
             goto cleanup;
         }
         
@@ -342,7 +342,7 @@ DWORD ProcessEvent(EVT_HANDLE hEvent) {
                 nlohmann::json djangoEvent = EventConverter::sysmonEventToDjangoFormat(sysmonEvent);
                 
                 if (djangoEvent.empty()) {
-                    std::cerr << "⚠️ Django format conversion returned empty" << std::endl;
+                    LOG_WARN("Django format conversion returned empty");
                     goto cleanup;
                 }
                 
@@ -356,23 +356,29 @@ DWORD ProcessEvent(EVT_HANDLE hEvent) {
                 static const size_t BATCH_SIZE = 100; 
                 
                 eventBuffer.push_back(djangoEvent);
-                std::cout << "  [Buffer] Added event. Size: " << eventBuffer.size() << "/" << BATCH_SIZE << std::endl;
+                
+                // DEBUG: Log what agent_version is in the buffered event
+                LOG_INFO("[BUFFER DEBUG] agent_version in event: " + djangoEvent.value("agent_version", std::string("NOT FOUND")));
+                
+                LOG_DEBUG("[Buffer] Added event. Size: " + std::to_string(eventBuffer.size()) + "/" + std::to_string(BATCH_SIZE));
                 
                 if (eventBuffer.size() >= BATCH_SIZE) {
-                    std::cout << "  [Batch] Sending " << eventBuffer.size() << " events..." << std::endl;
+                    LOG_INFO("[Batch] Sending " + std::to_string(eventBuffer.size()) + " events...");
                     
-                    if (g_httpClient->sendTelemetryBatch(eventBuffer)) {
-                        std::cout << "✅ Batch sent successfully" << std::endl;
+                    auto result = g_httpClient->sendTelemetryBatch(eventBuffer);
+                    if (result.isSuccess()) {
+                        LOG_INFO("Batch sent successfully");
                         eventBuffer.clear();
                     } else {
-                        std::cerr << "❌ Failed to send batch" << std::endl;
+                        // Use error codes for specific error handling
+                        LOG_ERROR("Failed to send batch: " + result.errorDescription() + " (code: " + std::to_string(result.code()) + ")");
                         eventBuffer.clear(); 
                     }
                 }
                 // If buffer isn't full yet, we do nothing and wait for the next event.
                 // ==================================================================================
                 
-                std::cout << "---" << std::endl;
+                LOG_DEBUG("---");
                 
             } catch (const nlohmann::json::parse_error& e) {
                 std::cerr << "❌ JSON parse error: " << e.what() << std::endl;

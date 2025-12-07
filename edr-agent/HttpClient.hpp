@@ -7,6 +7,7 @@
 #include <vector>
 #include "nlohmann/json.hpp"
 #include "SimpleZstd.hpp"
+#include "ErrorCodes.hpp"
 
 #pragma comment(lib, "winhttp.lib")
 
@@ -27,8 +28,9 @@ public:
     std::string GET(const std::string& endpoint);
     std::string POST(const std::string& endpoint, const std::string& data);
 
-    bool sendTelemetry(const nlohmann::json& eventData);
-    bool sendTelemetryBatch(const std::vector<nlohmann::json>& events);
+    // Updated to use VoidResult for proper error reporting
+    VoidResult sendTelemetry(const nlohmann::json& eventData);
+    VoidResult sendTelemetryBatch(const std::vector<nlohmann::json>& events);
     
 private:
     // Persistent Connection Handles

@@ -173,7 +173,7 @@ nlohmann::json EventConverter::sysmonEventToDjangoFormat(const nlohmann::json& s
             return djangoEvent;
         }
         
-        LOG_DEBUG("Conversion successful");
+        LOG_INFO("[TELEMETRY] Sending event. agent_version=" + g_agentVersion + " event_type=" + eventType);
         
     } catch (const std::exception& e) {
         LOG_ERROR(std::string("EventConverter ERROR: ") + e.what());

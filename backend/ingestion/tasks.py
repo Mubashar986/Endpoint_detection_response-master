@@ -32,7 +32,9 @@ def telemetry_ingest(data):
             agent_version = data.get('agent_version', 'unknown')
             hostname = data.get('host', {}).get('hostname', 'unknown')
             
-            logger.info(f"Agent tracking: {agent_id[:12]}... version={agent_version}, hostname={hostname}")
+            # DETAILED TRACING: Log the raw agent_version from incoming data
+            logger.warning(f"[TELEMETRY RECEIVED] agent_id={agent_id[:12]}... agent_version='{agent_version}' (from data)")
+            logger.warning(f"[TELEMETRY RECEIVED] Full data keys: {list(data.keys())}")
             
             Agent.objects(agent_id=agent_id).update_one(
                 set__hostname=hostname,
@@ -42,8 +44,9 @@ def telemetry_ingest(data):
                 set_on_insert__first_seen=datetime.utcnow(),
                 upsert=True
             )
+            logger.warning(f"[AGENT UPDATED] Set agent_version='{agent_version}' for agent {agent_id[:12]}...")
         except Exception as agent_error:
-            logger.warning(f"Failed to update agent: {agent_error}")
+            logger.error(f"Failed to update agent: {agent_error}")
         
         if event.event_type == 'process':
             cmd = event.raw_data.get('process', {}).get('command_line', '')

@@ -5,11 +5,16 @@
 #include <string>
 #include <vector>
 #include "nlohmann/json.hpp"
+#include "ErrorCodes.hpp"
 
 class ConfigReader {
 public:
     explicit ConfigReader(const std::filesystem::path& configFilePath);
     std::vector<std::pair<std::wstring, std::wstring>> getPathQueryPairs();
+    
+    // Error code support
+    static AgentError getLastError();
+    static std::string getLastErrorMessage();
     
     // WebSocket methods
     std::string getServerUri();

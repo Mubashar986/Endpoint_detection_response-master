@@ -2,6 +2,15 @@
 #include <fstream>
 #include "nlohmann/json.hpp"
 #include "ConfigReader.hpp"
+#include "ErrorCodes.hpp"
+#include "Logger.hpp"
+
+// Store last config error for diagnostics
+static AgentError g_lastConfigError = AgentError::Success;
+static std::string g_lastConfigErrorMsg = "";
+
+AgentError ConfigReader::getLastError() { return g_lastConfigError; }
+std::string ConfigReader::getLastErrorMessage() { return g_lastConfigErrorMsg; }
 
 ConfigReader::ConfigReader(
     const std::filesystem::path& configFilePath
@@ -17,25 +26,35 @@ nlohmann::json ConfigReader::parseJsonFile(const std::filesystem::path& configFi
         std::ifstream configFile(configFilePath);
 
         if (!configFile.is_open()) {
-            std::cerr << "Failed to open the file: " << configFilePath << std::endl;
+            LOG_ERROR("Failed to open config file: " + configFilePath.string());
+            g_lastConfigError = AgentError::ConfigNotFound;
+            g_lastConfigErrorMsg = "File not found: " + configFilePath.string();
             return nullptr;
         }
         configFile >> jsonObject;
         configFile.close();
 
-        std::cout << "Successfully read the JSON file: " << configFilePath << std::endl;
+        LOG_INFO("Successfully read config file: " + configFilePath.string());
+        g_lastConfigError = AgentError::Success;
+        g_lastConfigErrorMsg = "";
 
     }
     catch (const std::ifstream::failure& e) {
-        std::cerr << "Exception opening/reading/closing file: " << e.what() << std::endl;
+        LOG_ERROR(std::string("Exception opening/reading config: ") + e.what());
+        g_lastConfigError = AgentError::ConfigNotFound;
+        g_lastConfigErrorMsg = e.what();
         jsonObject = nullptr;
     }
     catch (const nlohmann::json::parse_error& e) {
-        std::cerr << "JSON parsing error: " << e.what() << std::endl;
+        LOG_ERROR(std::string("JSON parsing error: ") + e.what());
+        g_lastConfigError = AgentError::ConfigParseError;
+        g_lastConfigErrorMsg = e.what();
         jsonObject = nullptr;
     }
     catch (const std::exception& e) {
-        std::cerr << "Exception: " << e.what() << std::endl;
+        LOG_ERROR(std::string("Config exception: ") + e.what());
+        g_lastConfigError = AgentError::ConfigInvalidValue;
+        g_lastConfigErrorMsg = e.what();
         jsonObject = nullptr;
     }
 

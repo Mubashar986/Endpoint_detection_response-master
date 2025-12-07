@@ -11,6 +11,7 @@ class TelemetrySerializer(serializers.Serializer):
 
     severity = serializers.CharField(required=True)
     version = serializers.CharField(required=True)
+    agent_version = serializers.CharField(required=False, default='unknown')  # Software version!
     host = serializers.DictField(required=True)
     process = serializers.DictField(required=False)
     file = serializers.DictField(required=False)
