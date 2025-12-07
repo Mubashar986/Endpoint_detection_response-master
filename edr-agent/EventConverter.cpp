@@ -1,5 +1,6 @@
 #include "EventConverter.hpp"
 #include "AgentId.hpp"    // UUID-based agent identification
+#include "Logger.hpp"     // Logging framework
 #include <iostream>      // For std::cout, std::cerr
 #include <Windows.h>     // For GetComputerNameA, DWORD
 #include <random>
@@ -81,7 +82,7 @@ nlohmann::json EventConverter::sysmonEventToDjangoFormat(const nlohmann::json& s
     
     try {
         if (!sysmonEvent.contains("info")) {
-            std::cerr << "[EventConverter] Missing 'info' field" << std::endl;
+            LOG_WARN("Missing 'info' field");
             return djangoEvent;
         }
         
@@ -90,22 +91,22 @@ nlohmann::json EventConverter::sysmonEventToDjangoFormat(const nlohmann::json& s
         
         int eventId = system.value("EventID", 0);
         
-        std::cout << "[EventConverter] Processing Event ID: " << eventId << std::endl;
+        LOG_DEBUG("Processing Event ID: " + std::to_string(eventId));
         
         // Skip Event ID 5 (termination)
         if (eventId == 5) {
-            std::cout << "[EventConverter] Skipping Event ID 5 (termination)" << std::endl;
+            LOG_DEBUG("Skipping Event ID 5 (termination)");
             return djangoEvent;
         }
         
         std::string eventType = mapSysmonToEventType(eventId);
         
         if (eventType == "unknown") {
-            std::cout << "[EventConverter] Unknown Event ID: " << eventId << std::endl;
+            LOG_DEBUG("Unknown Event ID: " + std::to_string(eventId));
             return djangoEvent;
         }
         
-        std::cout << "[EventConverter] Event Type: " << eventType << std::endl;
+        LOG_DEBUG("Event Type: " + eventType);
         // ===== FIX: Use proper timestamp format =====
 
          std::string systemTime = system["TimeCreated"]["SystemTime"];
@@ -125,7 +126,7 @@ nlohmann::json EventConverter::sysmonEventToDjangoFormat(const nlohmann::json& s
         djangoEvent["severity"] = determineSeverity(eventId);
         djangoEvent["version"] = "1.0";  // Schema/format version
         djangoEvent["agent_version"] = g_agentVersion;  // Agent software version for updates
-        std::cout << "[EventConverter] agent_version set to: " << g_agentVersion << std::endl;
+        LOG_DEBUG("agent_version set to: " + g_agentVersion);
         
 
         // here we may need to add the different os_version here 
@@ -144,7 +145,7 @@ nlohmann::json EventConverter::sysmonEventToDjangoFormat(const nlohmann::json& s
                 {"parent_image", eventData.value("ParentImage", "")},
                 {"action", "created"}
             };
-            std::cout << "[EventConverter] Process: " << eventData.value("Image", "Unknown") << std::endl;
+            LOG_DEBUG("Process: " + eventData.value("Image", std::string("Unknown")));
         }
         else if (eventType == "network" && eventId == 3) {
             djangoEvent["network"] = {
@@ -155,9 +156,7 @@ nlohmann::json EventConverter::sysmonEventToDjangoFormat(const nlohmann::json& s
                 {"protocol", eventData.value("Protocol", "")},
                 {"image", eventData.value("Image", "")}
             };
-            std::cout << "[EventConverter] Network: " 
-                      << eventData.value("DestinationIp", "Unknown") << ":" 
-                      << eventData.value("DestinationPort", 0) << std::endl;
+            LOG_DEBUG("Network: " + eventData.value("DestinationIp", std::string("Unknown")) + ":" + std::to_string(eventData.value("DestinationPort", 0)));
         }
         else if (eventType == "file" && (eventId == 11 || eventId == 23)) {
             std::string operation = (eventId == 11) ? "created" : "deleted";
@@ -167,18 +166,17 @@ nlohmann::json EventConverter::sysmonEventToDjangoFormat(const nlohmann::json& s
                 {"operation", operation},
                 {"process_image", eventData.value("Image", "")}
             };
-            std::cout << "[EventConverter] File: " << operation << " " 
-                      << eventData.value("TargetFilename", "Unknown") << std::endl;
+            LOG_DEBUG("File: " + operation + " " + eventData.value("TargetFilename", std::string("Unknown")));
         }
         else {
-            std::cerr << "[EventConverter] Unhandled event: " << eventType << "/" << eventId << std::endl;
+            LOG_WARN("Unhandled event: " + eventType + "/" + std::to_string(eventId));
             return djangoEvent;
         }
         
-        std::cout << "[EventConverter] ✓ Conversion successful" << std::endl;
+        LOG_DEBUG("Conversion successful");
         
     } catch (const std::exception& e) {
-        std::cerr << "[EventConverter] ERROR: " << e.what() << std::endl;
+        LOG_ERROR(std::string("EventConverter ERROR: ") + e.what());
         return nlohmann::json();
     }
     

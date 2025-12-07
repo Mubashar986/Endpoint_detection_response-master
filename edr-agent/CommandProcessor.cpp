@@ -2,6 +2,7 @@
 #include "CommandProcessor.hpp"
 #include "ConfigReader.hpp"
 #include "HttpClient.hpp"
+#include "Logger.hpp"
 #include <iostream>
 
 // External reference to global agent ID (UUID from EdrAgent.cpp)

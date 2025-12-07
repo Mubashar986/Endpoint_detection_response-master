@@ -62,6 +62,7 @@ set(AGENT_SOURCES
     SimpleZstd.cpp
     CommandProcessor.cpp
     AgentId.cpp
+    Logger.cpp
 )
 
 if(ENABLE_WEBSOCKET)

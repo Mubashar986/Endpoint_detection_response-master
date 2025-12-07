@@ -1,5 +1,6 @@
 
 #include "WebSocketClient.hpp"
+#include "Logger.hpp"
 #include <iostream>
 #include <sstream>
 #include <regex>
@@ -23,7 +24,7 @@ WebSocketClient::WebSocketClient()
     , m_retry_delay_ms(5000)     // Start with 5 second delay
     , m_max_retry_delay_ms(60000) // Max 60 second delay
 {
-    std::cout << "[WebSocket] Beast client initialized (auto-reconnect enabled)." << std::endl;
+    LOG_INFO("WebSocket Beast client initialized (auto-reconnect enabled)");
 }
 
 WebSocketClient::~WebSocketClient() {
@@ -45,7 +46,7 @@ bool WebSocketClient::parse_uri(const std::string& uri,
     std::smatch match;
     
     if (!std::regex_match(uri, match, uri_regex)) {
-        std::cerr << "[WebSocket] Invalid URI format: " << uri << std::endl;
+        LOG_ERROR("Invalid WebSocket URI format: " + uri);
         return false;
     }
     
@@ -76,7 +77,7 @@ void WebSocketClient::connect(const std::string& uri) {
         return;
     }
     
-    std::cout << "[WebSocket] Connecting to " << m_host << ":" << m_port << m_path << std::endl;
+    LOG_INFO("WebSocket connecting to " + m_host + ":" + m_port + m_path);
     
     // Start the async resolution chain
     // Each step calls the next: resolve -> connect -> handshake -> read
@@ -102,7 +103,7 @@ void WebSocketClient::connect(const std::string& uri) {
 // ============================================================
 void WebSocketClient::on_resolve(beast::error_code ec, tcp::resolver::results_type results) {
     if (ec) {
-        std::cerr << "[WebSocket] Resolve error: " << ec.message() << std::endl;
+        LOG_ERROR("WebSocket resolve error: " + ec.message());
         schedule_reconnect();
         return;
     }
@@ -126,12 +127,12 @@ void WebSocketClient::on_resolve(beast::error_code ec, tcp::resolver::results_ty
 // ============================================================
 void WebSocketClient::on_connect(beast::error_code ec, tcp::resolver::results_type::endpoint_type ep) {
     if (ec) {
-        std::cerr << "[WebSocket] Connect error: " << ec.message() << std::endl;
+        LOG_ERROR("WebSocket connect error: " + ec.message());
         schedule_reconnect();
         return;
     }
     
-    std::cout << "[WebSocket] TCP connected to " << ep << std::endl;
+    LOG_INFO("WebSocket TCP connected");
     
     // Turn off the timeout for the handshake (it has its own timeout)
     beast::get_lowest_layer(*m_ws).expires_never();
@@ -163,12 +164,12 @@ void WebSocketClient::on_connect(beast::error_code ec, tcp::resolver::results_ty
 // ============================================================
 void WebSocketClient::on_handshake(beast::error_code ec) {
     if (ec) {
-        std::cerr << "[WebSocket] Handshake error: " << ec.message() << std::endl;
+        LOG_ERROR("WebSocket handshake error: " + ec.message());
         schedule_reconnect();
         return;
     }
     
-    std::cout << "[WebSocket] Connected successfully!" << std::endl;
+    LOG_INFO("WebSocket connected successfully!");
     
     // Mark connection as open and reset retry state on success
     {
@@ -209,7 +210,7 @@ void WebSocketClient::on_read(beast::error_code ec, std::size_t bytes_transferre
     
     // Handle connection closed normally
     if (ec == websocket::error::closed) {
-        std::cout << "[WebSocket] Connection closed by server." << std::endl;
+        LOG_WARN("WebSocket connection closed by server");
         {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_open = false;
@@ -220,7 +221,7 @@ void WebSocketClient::on_read(beast::error_code ec, std::size_t bytes_transferre
     
     // Handle other errors
     if (ec) {
-        std::cerr << "[WebSocket] Read error: " << ec.message() << std::endl;
+        LOG_ERROR("WebSocket read error: " + ec.message());
         {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_open = false;
@@ -231,7 +232,7 @@ void WebSocketClient::on_read(beast::error_code ec, std::size_t bytes_transferre
     
     // Extract the message as a string
     std::string message = beast::buffers_to_string(m_buffer.data());
-    std::cout << "[WebSocket] Received: " << message << std::endl;
+    LOG_DEBUG("WebSocket received: " + message.substr(0, std::min((size_t)100, message.size())) + "...");
     
 
 
@@ -242,23 +243,23 @@ try {
         
         if (msgType == "command") {
             // It's a command - process it
-            std::cout << "[WebSocket] Processing command..." << std::endl;
+            LOG_DEBUG("WebSocket processing command...");
             std::string response = CommandProcessor::executeCommand(message);
             if (!response.empty()) {
                 send(response);
             }
         } else if (msgType == "connection_established") {
             // Welcome message - just log it
-            std::cout << "[WebSocket] Server says: " << data.value("message", "") << std::endl;
+            LOG_INFO("WebSocket server: " + data.value("message", std::string("")));
         } else if (msgType == "heartbeat_ack") {
             // Heartbeat acknowledgment
-            std::cout << "[WebSocket] Heartbeat acknowledged" << std::endl;
+            LOG_DEBUG("WebSocket heartbeat acknowledged");
         } else {
             // Unknown type - log but don't send error
-            std::cout << "[WebSocket] Ignoring message type: " << msgType << std::endl;
+            LOG_DEBUG("WebSocket ignoring message type: " + msgType);
         }
     } catch (const std::exception& e) {
-        std::cerr << "[WebSocket] JSON parse error: " << e.what() << std::endl;
+        LOG_ERROR(std::string("WebSocket JSON parse error: ") + e.what());
     }   
     
     // Continue reading
@@ -273,7 +274,7 @@ void WebSocketClient::send(const std::string& data) {
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         if (!m_open) {
-            std::cerr << "[WebSocket] Cannot send: Not connected." << std::endl;
+            LOG_WARN("WebSocket cannot send: Not connected");
             return;
         }
     }
@@ -289,9 +290,9 @@ void WebSocketClient::send(const std::string& data) {
         m_ws->write(net::buffer(data), ec);
         
         if (ec) {
-            std::cerr << "[WebSocket] Write error: " << ec.message() << std::endl;
+            LOG_ERROR("WebSocket write error: " + ec.message());
         } else {
-            std::cout << "[WebSocket] Sent: " << data.substr(0, 100) << "..." << std::endl;
+            LOG_DEBUG("WebSocket sent: " + data.substr(0, std::min((size_t)100, data.size())) + "...");
         }
     });
 }
@@ -303,7 +304,7 @@ void WebSocketClient::on_write(beast::error_code ec, std::size_t bytes_transferr
     boost::ignore_unused(bytes_transferred);
     
     if (ec) {
-        std::cerr << "[WebSocket] Write error: " << ec.message() << std::endl;
+        LOG_ERROR("WebSocket write error: " + ec.message());
     }
 }
 
@@ -336,14 +337,14 @@ void WebSocketClient::close() {
         m_open = false;
     }
     
-    std::cout << "[WebSocket] Closing connection..." << std::endl;
+    LOG_INFO("WebSocket closing connection...");
     
     // Post the close to the I/O thread
     net::post(m_ws->get_executor(), [this]() {
         beast::error_code ec;
         m_ws->close(websocket::close_code::normal, ec);
         if (ec) {
-            std::cerr << "[WebSocket] Close error: " << ec.message() << std::endl;
+            LOG_ERROR("WebSocket close error: " + ec.message());
         }
     });
     
@@ -353,7 +354,7 @@ void WebSocketClient::close() {
         m_io_thread.join();
     }
     
-    std::cout << "[WebSocket] Connection closed." << std::endl;
+    LOG_INFO("WebSocket connection closed");
 }
 
 // ============================================================
@@ -361,7 +362,7 @@ void WebSocketClient::close() {
 // ============================================================
 void WebSocketClient::on_close(beast::error_code ec) {
     if (ec) {
-        std::cerr << "[WebSocket] Close error: " << ec.message() << std::endl;
+        LOG_ERROR("WebSocket close error: " + ec.message());
     }
     
     std::lock_guard<std::mutex> lock(m_mutex);
@@ -386,21 +387,20 @@ void WebSocketClient::schedule_reconnect() {
     
     // Check if reconnection is disabled
     if (!m_should_reconnect) {
-        std::cout << "[WebSocket] Reconnection disabled, not retrying." << std::endl;
+        LOG_INFO("WebSocket reconnection disabled, not retrying");
         return;
     }
     
     // Check max retries (0 = infinite)
     if (m_max_retries > 0 && m_retry_count >= m_max_retries) {
-        std::cerr << "[WebSocket] Max retries reached (" << m_max_retries << "), giving up." << std::endl;
+        LOG_ERROR("WebSocket max retries reached (" + std::to_string(m_max_retries) + "), giving up");
         return;
     }
     
     m_retry_count++;
     int delay_seconds = m_retry_delay_ms / 1000;
     
-    std::cout << "[WebSocket] Scheduling reconnection attempt #" << m_retry_count 
-              << " in " << delay_seconds << " seconds..." << std::endl;
+    LOG_INFO("WebSocket scheduling reconnection #" + std::to_string(m_retry_count) + " in " + std::to_string(delay_seconds) + " seconds...");
     
     // Create or reset the timer
     if (!m_reconnect_timer) {
@@ -420,7 +420,7 @@ void WebSocketClient::schedule_reconnect() {
 
 // Actually attempt the reconnection
 void WebSocketClient::do_reconnect() {
-    std::cout << "[WebSocket] Attempting reconnection to " << m_host << ":" << m_port << m_path << std::endl;
+    LOG_INFO("WebSocket attempting reconnection to " + m_host + ":" + m_port + m_path);
     
     // Reset the WebSocket stream for a fresh connection
     // Using reset() because unique_ptr allows this (unlike direct assignment)

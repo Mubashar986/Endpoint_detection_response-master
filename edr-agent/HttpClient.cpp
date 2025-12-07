@@ -1,6 +1,7 @@
 #include "HttpClient.hpp"
 #include "ConfigReader.hpp"
 #include "SimpleZstd.hpp"
+#include "Logger.hpp"
 #include <iostream>
 #include <vector>
 
@@ -15,7 +16,7 @@ HttpClient::HttpClient(const std::string& serverHost, int serverPort,
     hSession = NULL;
     hConnect = NULL;
     
-    std::cout << "[HTTP] Client initialized for Django backend (Keep-Alive)" << std::endl;
+    LOG_INFO("HTTP Client initialized for Django backend (Keep-Alive)");
 }
 
 HttpClient::HttpClient() : port(0), hSession(NULL), hConnect(NULL) {}
@@ -36,7 +37,7 @@ bool HttpClient::connect() {
         hSession = WinHttpOpen(L"EDR-Agent/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                                WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
         if (!hSession) {
-            std::cerr << "[HTTP] WinHttpOpen failed. Error: " << GetLastError() << std::endl;
+            LOG_ERROR("WinHttpOpen failed. Error: " + std::to_string(GetLastError()));
             return false;
         }
     }
@@ -45,7 +46,7 @@ bool HttpClient::connect() {
     if (!hConnect) {
         hConnect = WinHttpConnect(hSession, server.c_str(), (INTERNET_PORT)port, 0);
         if (!hConnect) {
-            std::cerr << "[HTTP] WinHttpConnect failed. Error: " << GetLastError() << std::endl;
+            LOG_ERROR("WinHttpConnect failed. Error: " + std::to_string(GetLastError()));
             return false;
         }
     }
@@ -68,7 +69,7 @@ bool HttpClient::ensureConnection() {
     if (connect()) return true;
     
     // Retry once
-    std::cerr << "[HTTP] Connection lost, retrying..." << std::endl;
+    LOG_WARN("HTTP Connection lost, retrying...");
     disconnect();
     return connect();
 }
@@ -181,21 +182,21 @@ std::string HttpClient::POST(const std::string& endpoint, const std::string& dat
     urlComp.dwUrlPathLength = ARRAYSIZE(urlPath);
     
     if (!WinHttpCrackUrl(fullUrl.c_str(), (DWORD)fullUrl.length(), 0, &urlComp)) {
-        std::cerr << "[HTTP] Failed to parse URL: " << endpoint << std::endl;
+        LOG_ERROR("Failed to parse URL: " + endpoint);
         return "";
     }
     
     HINTERNET hTempSession = WinHttpOpen(L"EDR-Agent/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                                           WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
     if (!hTempSession) {
-        std::cerr << "[HTTP] WinHttpOpen failed" << std::endl;
+        LOG_ERROR("WinHttpOpen failed");
         return "";
     }
     
     HINTERNET hTempConnect = WinHttpConnect(hTempSession, hostName, urlComp.nPort, 0);
     if (!hTempConnect) {
         WinHttpCloseHandle(hTempSession);
-        std::cerr << "[HTTP] WinHttpConnect failed" << std::endl;
+        LOG_ERROR("WinHttpConnect failed");
         return "";
     }
     
@@ -204,7 +205,7 @@ std::string HttpClient::POST(const std::string& endpoint, const std::string& dat
     if (!hRequest) {
         WinHttpCloseHandle(hTempConnect);
         WinHttpCloseHandle(hTempSession);
-        std::cerr << "[HTTP] WinHttpOpenRequest failed" << std::endl;
+        LOG_ERROR("WinHttpOpenRequest failed");
         return "";
     }
     
@@ -228,7 +229,7 @@ std::string HttpClient::POST(const std::string& endpoint, const std::string& dat
             WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
                               WINHTTP_HEADER_NAME_BY_INDEX, &dwStatusCode, &dwSize, WINHTTP_NO_HEADER_INDEX);
             
-            std::cout << "[HTTP] Command result reported: " << dwStatusCode << std::endl;
+            LOG_INFO("Command result reported: " + std::to_string(dwStatusCode));
             
             // Read response body
             DWORD dwDownloaded = 0;
@@ -246,7 +247,7 @@ std::string HttpClient::POST(const std::string& endpoint, const std::string& dat
             } while (dwSize > 0);
         }
     } else {
-        std::cerr << "[HTTP] POST request failed" << std::endl;
+        LOG_ERROR("POST request failed");
     }
     
     WinHttpCloseHandle(hRequest);
@@ -260,7 +261,7 @@ bool HttpClient::sendTelemetry(const nlohmann::json& eventData) {
         std::string jsonStr = eventData.dump();
         return sendHttpPost(jsonStr);
     } catch (const std::exception& e) {
-        std::cerr << "[HTTP] Error: " << e.what() << std::endl;
+        LOG_ERROR(std::string("Error: ") + e.what());
         return false;
     }
 }
@@ -272,14 +273,14 @@ bool HttpClient::sendTelemetryBatch(const std::vector<nlohmann::json>& events) {
         
         std::vector<BYTE> compressedData;
         if (compressData(jsonStr, compressedData)) {
-             std::cout << "[HTTP] Compressed " << jsonStr.size() << " bytes to " << compressedData.size() << " bytes" << std::endl;
+             LOG_DEBUG("Compressed " + std::to_string(jsonStr.size()) + " bytes to " + std::to_string(compressedData.size()) + " bytes");
              return sendCompressedHttpPost(compressedData);
         } else {
-             std::cerr << "[HTTP] Compression failed, sending plain text" << std::endl;
+             LOG_WARN("Compression failed, sending plain text");
              return sendHttpPost(jsonStr);
         }
     } catch (const std::exception& e) {
-        std::cerr << "[HTTP] Error in batch send: " << e.what() << std::endl;
+        LOG_ERROR(std::string("Error in batch send: ") + e.what());
         return false;
     }
 }
@@ -298,7 +299,7 @@ bool HttpClient::sendCompressedHttpPost(const std::vector<BYTE>& compressedData)
                                             WINHTTP_DEFAULT_ACCEPT_TYPES,
                                             0);
     if (!hRequest) {
-        std::cerr << "[HTTP] WinHttpOpenRequest failed: " << GetLastError() << std::endl;
+        LOG_ERROR("WinHttpOpenRequest failed: " + std::to_string(GetLastError()));
         // If request creation fails, maybe connection is dead?
         disconnect();
         return false;
@@ -321,7 +322,7 @@ bool HttpClient::sendCompressedHttpPost(const std::vector<BYTE>& compressedData)
                                        
     // Auto-Retry Logic on Failure
     if (!bResults) {
-        std::cerr << "[HTTP] Send failed (" << GetLastError() << "). Reconnecting..." << std::endl;
+        LOG_ERROR("Send failed (" + std::to_string(GetLastError()) + "). Reconnecting...");
         WinHttpCloseHandle(hRequest);
         disconnect();
         if (ensureConnection()) {
@@ -361,7 +362,7 @@ bool HttpClient::sendCompressedHttpPost(const std::vector<BYTE>& compressedData)
                 delete[] buffer;
             } while (dwAvailable > 0);
         } else {
-            std::cerr << "[HTTP] Server returned error: " << dwStatusCode << std::endl;
+            LOG_ERROR("Server returned error: " + std::to_string(dwStatusCode));
             bResults = false;
         }
     }
@@ -411,9 +412,9 @@ bool HttpClient::sendHttpPost(const std::string& jsonData) {
         WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, 
                             WINHTTP_HEADER_NAME_BY_INDEX, &dwStatusCode, &dwSize, WINHTTP_NO_HEADER_INDEX);
         if (dwStatusCode == 201) {
-            std::cout << "[HTTP] ✅ Sent (201)" << std::endl;
+            LOG_INFO("Sent successfully (201)");
         } else {
-            std::cerr << "[HTTP] ❌ Failed (" << dwStatusCode << ")" << std::endl;
+            LOG_ERROR("Failed with status: " + std::to_string(dwStatusCode));
             bResults = false;
         }
     }

@@ -6,6 +6,7 @@
 #include "CommandProcessor.hpp"    // Response Actions
 #include "EventConverter.hpp"      // Event format converter
 #include "AgentId.hpp"             // UUID-based agent identification
+#include "Logger.hpp"              // Logging framework
 #ifdef ENABLE_WEBSOCKET
 #include "WebSocketClient.hpp"     // WebSocket for real-time commands
 #endif
@@ -35,9 +36,13 @@ std::string sanitizeUtf8(const std::string& input);
 // Global Variables
 // ============================================
 #include "version.h"  // CMake-generated version header
+#include <atomic>     // For graceful shutdown flag
 
 std::string g_agentId;  // UUID-based agent identifier (set once at startup)
 std::string g_agentVersion = AGENT_VERSION;  // From CMake (single source of truth)
+
+// Graceful shutdown flag - set by console control handler
+std::atomic<bool> g_shutdownRequested{false};
 
 #ifdef ENABLE_WEBSOCKET
 WebSocketClient* g_webSocketClient = nullptr;  // WebSocket for real-time commands
@@ -45,73 +50,99 @@ WebSocketClient* g_webSocketClient = nullptr;  // WebSocket for real-time comman
 HttpClient* g_httpClient = nullptr;                 // Active now
 
 // ============================================
+// Console Control Handler for Graceful Shutdown
+// ============================================
+BOOL WINAPI ConsoleCtrlHandler(DWORD ctrlType) {
+    const char* signalName = "Unknown";
+    switch (ctrlType) {
+        case CTRL_C_EVENT:        signalName = "Ctrl+C"; break;
+        case CTRL_BREAK_EVENT:    signalName = "Ctrl+Break"; break;
+        case CTRL_CLOSE_EVENT:    signalName = "Console Close"; break;
+        case CTRL_LOGOFF_EVENT:   signalName = "Logoff"; break;
+        case CTRL_SHUTDOWN_EVENT: signalName = "Shutdown"; break;
+    }
+    
+    LOG_WARN(std::string(signalName) + " received, initiating graceful shutdown...");
+    g_shutdownRequested = true;
+    
+    // Return TRUE to tell Windows we're handling it
+    // Windows will wait up to 5 seconds for cleanup
+    return TRUE;
+}
+
+// ============================================
 // Main Function
 // ============================================
 int main() {
-    std::cout << "========================================" << std::endl;
-    std::cout << "  EDR Agent v1.0" << std::endl;
-    std::cout << "  HTTP Mode (WebSocket added but fot the future )" << std::endl;
-    std::cout << "========================================" << std::endl;
+    // Register console control handler for graceful shutdown
+    SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
+    
+    // Initialize logging framework
+    Logger::instance().setLevel(LogLevel::LVL_DEBUG);
+    Logger::instance().setLogFile("edr-agent.log");
+    
+    LOG_INFO("========================================");
+    LOG_INFO("  EDR Agent v" + g_agentVersion);
+    LOG_INFO("  HTTP Mode (WebSocket added for future)");
+    LOG_INFO("========================================");
     
     try {
         // Step 1: Read Configuration
-        std::cout << "\n[1/4] Reading configuration file..." << std::endl;
+        LOG_INFO("[1/4] Reading configuration file...");
         ConfigReader configReader("config.json");
         
         // Check available modes
         bool hasHttp = configReader.hasHttpConfig();
         bool hasWebSocket = configReader.hasWebSocketConfig();
         
-        std::cout << "\nConfiguration detected:" << std::endl;
-        std::cout << "  HTTP: " << (hasHttp ? "✓ Available" : "✗ Not configured") << std::endl;
-        std::cout << "  WebSocket: " << (hasWebSocket ? "✓ Available (not active)" : "✗ Not configured") << std::endl;
+        LOG_INFO("Configuration detected:");
+        LOG_INFO("  HTTP: " + std::string(hasHttp ? "Available" : "Not configured"));
+        LOG_INFO("  WebSocket: " + std::string(hasWebSocket ? "Available" : "Not configured"));
         
         if (!hasHttp) {
-            std::cerr << "\n❌ ERROR: HTTP configuration not found!" << std::endl;
-            std::cerr << "Please add http_server, http_port, api_path, and auth_token to config.json" << std::endl;
-            return 1;
+            LOG_FATAL("HTTP configuration not found! Add http_server, http_port, api_path, auth_token to config.json");
         }
         
         // Step 1.5: Initialize Unique Agent ID
-        std::cout << "\n[1.5/4] Initializing Agent ID..." << std::endl;
+        LOG_INFO("[1.5/4] Initializing Agent ID...");
         std::filesystem::path configDir = std::filesystem::path("config.json").parent_path();
         if (configDir.empty()) {
             configDir = std::filesystem::current_path();
         }
         g_agentId = AgentId::getOrCreate(configDir);
-        std::cout << "  ✓ Agent ID: " << g_agentId << std::endl;
+        LOG_INFO("Agent ID: " + g_agentId);
         
         // Step 2: Initialize HTTP Client
-        std::cout << "\n[2/4] Initializing HTTP client..." << std::endl;
+        LOG_INFO("[2/4] Initializing HTTP client...");
         std::string httpServer = configReader.getHttpServer();
         int httpPort = configReader.getHttpPort();
         std::string apiPath = configReader.getApiPath();
         std::string authToken = configReader.getAuthToken();
         
         if (authToken.empty()) {
-            std::cerr << "⚠️ WARNING: No authentication token configured!" << std::endl;
+            LOG_WARN("No authentication token configured!");
         }
         
         HttpClient httpClient(httpServer, httpPort, apiPath, authToken);
         g_httpClient = &httpClient;
         
-        std::cout << "  ✓ HTTP client initialized" << std::endl;
-        std::cout << "  → Target: " << httpServer << ":" << httpPort << apiPath << std::endl;
+        LOG_INFO("HTTP client initialized");
+        LOG_INFO("Target: " + httpServer + ":" + std::to_string(httpPort) + apiPath);
         
         // Step 2.5: Start Command Polling (unless disabled for WebSocket-only mode)
         bool disablePolling = configReader.isHttpPollingDisabled();
         if (!disablePolling) {
-            std::cout << "\n[2.5/4] Starting Command Polling Service..." << std::endl;
+            LOG_INFO("[2.5/4] Starting Command Polling Service...");
             CommandProcessor::startCommandPolling();
         } else {
-            std::cout << "\n[2.5/4] HTTP Command Polling DISABLED (WebSocket-only mode)" << std::endl;
-            std::cout << "  ⚠️  Commands will only be received via WebSocket" << std::endl;
+            LOG_INFO("[2.5/4] HTTP Command Polling DISABLED (WebSocket-only mode)");
+            LOG_WARN("Commands will only be received via WebSocket");
         }
 
         // Step 3: WebSocket (Real-time Commands)
 #ifdef ENABLE_WEBSOCKET
         if (hasWebSocket) {
-            std::cout << "\n[3/4] Initializing WebSocket client..." << std::endl;
+            LOG_INFO("[3/4] Initializing WebSocket client...");
             std::string wsUri = configReader.getServerUri();
             
             // Create WebSocket client on heap so it persists
@@ -119,25 +150,24 @@ int main() {
             g_webSocketClient = &webSocketClient;
             webSocketClient.connect(wsUri);
             
-            std::cout << "  ✓ WebSocket connecting to: " << wsUri << std::endl;
-            std::cout << "  → Commands will be received in real-time" << std::endl;
+            LOG_INFO("WebSocket connecting to: " + wsUri);
+            LOG_INFO("Commands will be received in real-time");
             
             // Give time for connection to establish
             Sleep(2000);
         }
 #else
         if (hasWebSocket) {
-            std::cout << "\n[WebSocket] Configuration found but not compiled" << std::endl;
-            std::cout << "  To enable: Rebuild with -DENABLE_WEBSOCKET=ON" << std::endl;
+            LOG_WARN("WebSocket configuration found but not compiled. Rebuild with -DENABLE_WEBSOCKET=ON");
         }
 #endif
         
         // Step 4: Subscribe to Windows Event Logs
-        std::cout << "\n[3/4] Subscribing to Windows Event Logs..." << std::endl;
+        LOG_INFO("[3/4] Subscribing to Windows Event Logs...");
         std::vector<std::pair<std::wstring, std::wstring>> pathQueryPairs = configReader.getPathQueryPairs();
         
         if (pathQueryPairs.empty()) {
-            std::cerr << "❌ ERROR: No event sources configured!" << std::endl;
+            LOG_FATAL("No event sources configured!");
             return 1;
         }
         
@@ -147,7 +177,7 @@ int main() {
         for (const auto& pair : pathQueryPairs) {
             std::wstring pwsPath = pair.first;
             std::wstring pwsQuery = pair.second;
-            std::wcout << L"  → Subscribing to: " << pwsPath << std::endl;
+            LOG_INFO("Subscribing to: " + std::string(pwsPath.begin(), pwsPath.end()));
 
             EVT_HANDLE hSubscription = EvtSubscribe(
                 NULL, 
@@ -164,64 +194,73 @@ int main() {
                 status = GetLastError();
                 
                 if (ERROR_EVT_CHANNEL_NOT_FOUND == status) {
-                    std::wcout << L"  ⚠️ Channel not found: " << pwsPath << std::endl;
+                    LOG_WARN("Channel not found: " + std::string(pwsPath.begin(), pwsPath.end()));
                 } else if (ERROR_EVT_INVALID_QUERY == status) {
-                    std::wcout << L"  ⚠️ Invalid query: " << pwsQuery << std::endl;
+                    LOG_WARN("Invalid query");
                 } else {
-                    std::wcout << L"  ❌ Subscribe failed with error: " << status << std::endl;
+                    LOG_ERROR("Subscribe failed with error: " + std::to_string(status));
                 }
                 
                 continue; // Try next subscription
             }
             
             subscriptions.push_back(hSubscription);
-            std::wcout << L"  ✓ Subscribed successfully" << std::endl;
+            LOG_INFO("Subscribed successfully");
         }
         
         if (subscriptions.empty()) {
-            std::cerr << "\n❌ ERROR: No successful subscriptions!" << std::endl;
-            std::cerr << "Make sure Sysmon is installed and running." << std::endl;
+            LOG_FATAL("No successful subscriptions! Make sure Sysmon is installed.");
             return 1;
         }
 
         // Step 5: Monitor Events
-        std::cout << "\n[4/4] ========================================" << std::endl;
-        std::cout << "✓ Agent is now monitoring events" << std::endl;
-        std::cout << "  Active mode: HTTP" << std::endl;
-        std::cout << "  Target: " << httpServer << ":" << httpPort << std::endl;
-        std::cout << "  Monitoring " << subscriptions.size() << " event source(s)" << std::endl;
-        std::cout << "\nPress any key to stop monitoring..." << std::endl;
-        std::cout << "========================================\n" << std::endl;
+        LOG_INFO("[4/4] Agent is now monitoring events");
+        LOG_INFO("Active mode: HTTP | Target: " + httpServer + ":" + std::to_string(httpPort));
+        LOG_INFO("Monitoring " + std::to_string(subscriptions.size()) + " event source(s)");
+        LOG_INFO("Press any key or Ctrl+C to stop...");
 
-        // Main event loop
-        while (!_kbhit()) {
+        // Main event loop - exits on keyboard press OR shutdown signal
+        while (!g_shutdownRequested && !_kbhit()) {
             Sleep(100); // Sleep 100ms
         }
 
-        // Cleanup
-        std::cout << "\n\nShutting down agent..." << std::endl;
-        
+        // ==========================================
+        // Graceful Shutdown
+        // ==========================================
+        LOG_INFO("[Shutdown] Stopping services...");
+
+        // Stop command polling
+        LOG_INFO("Stopping command polling...");
         CommandProcessor::stopCommandPolling();
 
+        // Close event subscriptions
+        LOG_INFO("Closing event subscriptions...");
         for (auto hSub : subscriptions) {
             if (hSub) {
                 EvtClose(hSub);
             }
         }
         
-        // Close WebSocket if active
-        /*
+#ifdef ENABLE_WEBSOCKET
+        // Close WebSocket with proper CLOSE frame
         if (g_webSocketClient != nullptr) {
+            LOG_INFO("Closing WebSocket connection...");
             g_webSocketClient->close();
-            std::cout << "✓ WebSocket connection closed" << std::endl;
         }
-        */
+#endif
+
+        // Close HTTP client
+        if (g_httpClient != nullptr) {
+            LOG_INFO("Closing HTTP client...");
+            delete g_httpClient;
+            g_httpClient = nullptr;
+        }
         
-        std::cout << "✓ Agent stopped successfully" << std::endl;
+        LOG_INFO("Agent shutdown complete");
         return 0;
         
     } catch (const std::exception& e) {
-        std::cerr << "\n❌ FATAL ERROR: " << e.what() << std::endl;
+        LOG_FATAL(std::string("FATAL ERROR: ") + e.what());
         return 1;
     }
 }
