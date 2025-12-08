@@ -1,5 +1,6 @@
 #include "Logger.hpp"
 #include <Windows.h>  // For console colors
+#include <filesystem>
 
 // ============================================
 // Singleton Instance
@@ -15,7 +16,10 @@ Logger& Logger::instance() {
 Logger::Logger() 
     : m_level(LogLevel::LVL_INFO)
     , m_consoleEnabled(true)
-    , m_fileEnabled(false) {
+    , m_fileEnabled(false)
+    , m_maxLogSize(10 * 1024 * 1024)  // 10 MB default
+    , m_maxLogFiles(5)                 // Keep 5 rotated files
+    , m_currentLogSize(0) {
 }
 
 // ============================================
@@ -45,14 +49,37 @@ void Logger::setLogFile(const std::string& path) {
         m_logFile.close();
     }
     
+    m_logPath = path;
     m_logFile.open(path, std::ios::app);
     if (m_logFile.is_open()) {
         m_fileEnabled = true;
+        
+        // Get current file size for rotation tracking
+        try {
+            m_currentLogSize = std::filesystem::file_size(path);
+        } catch (...) {
+            m_currentLogSize = 0;
+        }
+        
         // Write header
         m_logFile << "\n========================================\n";
         m_logFile << "Log session started: " << getTimestamp() << "\n";
         m_logFile << "========================================\n";
+        m_logFile.flush();
     }
+}
+
+// ============================================
+// Log Rotation Configuration
+// ============================================
+void Logger::setMaxLogSize(size_t maxBytes) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_maxLogSize = maxBytes;
+}
+
+void Logger::setMaxLogFiles(int maxFiles) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_maxLogFiles = maxFiles;
 }
 
 // ============================================
@@ -123,6 +150,10 @@ void Logger::log(LogLevel level, const std::string& message,
     if (m_fileEnabled && m_logFile.is_open()) {
         m_logFile << logLine << std::endl;
         m_logFile.flush();  // Ensure immediate write
+        m_currentLogSize += logLine.size() + 1;  // +1 for newline
+        
+        // Check if rotation needed
+        checkRotation();
     }
 }
 
@@ -168,4 +199,68 @@ std::string Logger::formatFilename(const char* path) {
         return fullPath.substr(lastSlash + 1);
     }
     return fullPath;
+}
+
+// ============================================
+// Check if Rotation Needed
+// ============================================
+void Logger::checkRotation() {
+    // Must be called with lock held
+    if (m_currentLogSize >= m_maxLogSize) {
+        rotateLog();
+    }
+}
+
+// ============================================
+// Rotate Log Files
+// ============================================
+void Logger::rotateLog() {
+    // Must be called with lock held
+    // Close current log
+    if (m_logFile.is_open()) {
+        m_logFile.close();
+    }
+    
+    try {
+        std::filesystem::path logPath(m_logPath);
+        std::filesystem::path logDir = logPath.parent_path();
+        std::string baseName = logPath.stem().string();
+        std::string ext = logPath.extension().string();
+        
+        // Delete oldest log if at max
+        std::string oldestLog = m_logPath + "." + std::to_string(m_maxLogFiles);
+        if (std::filesystem::exists(oldestLog)) {
+            std::filesystem::remove(oldestLog);
+        }
+        
+        // Rotate existing logs: .4 -> .5, .3 -> .4, etc.
+        for (int i = m_maxLogFiles - 1; i >= 1; i--) {
+            std::string oldName = m_logPath + "." + std::to_string(i);
+            std::string newName = m_logPath + "." + std::to_string(i + 1);
+            
+            if (std::filesystem::exists(oldName)) {
+                std::filesystem::rename(oldName, newName);
+            }
+        }
+        
+        // Rename current log to .1
+        if (std::filesystem::exists(m_logPath)) {
+            std::filesystem::rename(m_logPath, m_logPath + ".1");
+        }
+        
+    } catch (const std::exception& e) {
+        // Rotation failed, try to continue anyway
+        std::cerr << "[Logger] Rotation failed: " << e.what() << std::endl;
+    }
+    
+    // Reopen fresh log file
+    m_logFile.open(m_logPath, std::ios::out | std::ios::trunc);
+    m_currentLogSize = 0;
+    
+    if (m_logFile.is_open()) {
+        m_logFile << "========================================\n";
+        m_logFile << "Log rotated: " << getTimestamp() << "\n";
+        m_logFile << "========================================\n";
+        m_logFile.flush();
+    }
 }

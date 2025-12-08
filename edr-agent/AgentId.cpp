@@ -78,11 +78,18 @@ bool isValid(const std::string& uuid) {
 // ============================================
 
 std::string getOrCreate(const std::filesystem::path& configDir) {
-    // Path to the agent ID file
-    std::filesystem::path idPath = configDir / "agent_id.txt";
+    // Use a FIXED system-wide location for agent ID
+    // This ensures console mode and service mode use the SAME agent ID
+    // C:\ProgramData\EDRAgent\agent_id.txt (accessible by all users/services)
+    
+    std::filesystem::path systemDir = "C:\\ProgramData\\EDRAgent";
+    std::filesystem::path idPath = systemDir / "agent_id.txt";
+    
+    // Also check the legacy location (configDir) for backward compatibility
+    std::filesystem::path legacyPath = configDir / "agent_id.txt";
     
     // ------------------------------------------
-    // Step 1: Check if ID file already exists
+    // Step 1: Check if ID file exists in system location
     // ------------------------------------------
     if (std::filesystem::exists(idPath)) {
         std::ifstream file(idPath);
@@ -109,6 +116,43 @@ std::string getOrCreate(const std::filesystem::path& configDir) {
     }
     
     // ------------------------------------------
+    // Step 1b: Check legacy location and migrate if found
+    // ------------------------------------------
+    if (std::filesystem::exists(legacyPath)) {
+        std::ifstream file(legacyPath);
+        
+        if (file.is_open()) {
+            std::string existingId;
+            
+            if (std::getline(file, existingId)) {
+                size_t endPos = existingId.find_last_not_of(" \n\r\t");
+                if (endPos != std::string::npos) {
+                    existingId = existingId.substr(0, endPos + 1);
+                }
+                
+                if (!existingId.empty() && isValid(existingId)) {
+                    std::cout << "[AgentId] Migrating ID from legacy location: " << existingId << std::endl;
+                    
+                    // Migrate to system location
+                    try {
+                        std::filesystem::create_directories(systemDir);
+                        std::ofstream sysFile(idPath);
+                        if (sysFile.is_open()) {
+                            sysFile << existingId;
+                            sysFile.close();
+                            std::cout << "[AgentId] Migrated to: " << idPath.string() << std::endl;
+                        }
+                    } catch (...) {
+                        // Ignore migration errors, we still have the ID
+                    }
+                    
+                    return existingId;
+                }
+            }
+        }
+    }
+    
+    // ------------------------------------------
     // Step 2: Generate new UUID
     // ------------------------------------------
     std::string newId = generate();
@@ -116,12 +160,12 @@ std::string getOrCreate(const std::filesystem::path& configDir) {
     std::cout << "[AgentId] Generated new ID: " << newId << std::endl;
     
     // ------------------------------------------
-    // Step 3: Save to file for persistence
+    // Step 3: Save to SYSTEM location for persistence
     // ------------------------------------------
     try {
         // Create directory if it doesn't exist
-        if (!configDir.empty() && !std::filesystem::exists(configDir)) {
-            std::filesystem::create_directories(configDir);
+        if (!std::filesystem::exists(systemDir)) {
+            std::filesystem::create_directories(systemDir);
         }
         
         std::ofstream file(idPath);
@@ -142,3 +186,4 @@ std::string getOrCreate(const std::filesystem::path& configDir) {
 }
 
 }  // namespace AgentId
+

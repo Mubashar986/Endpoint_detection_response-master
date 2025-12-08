@@ -1,4 +1,4 @@
-from mongoengine import Document, StringField, DictField, DateTimeField, IntField, BooleanField
+from mongoengine import Document, StringField, DictField, DateTimeField, IntField, BooleanField, FloatField
 from datetime import datetime
 import uuid
 
@@ -98,6 +98,13 @@ class Agent(Document):
     
     # Configuration version
     config_version = IntField(default=1)
+    
+    # Heartbeat metrics (Phase-1 Addition)
+    cpu_percent = FloatField(default=0)
+    memory_mb = IntField(default=0)
+    uptime_seconds = IntField(default=0)
+    events_sent = IntField(default=0)
+    last_heartbeat = DateTimeField()
     
     meta = {
         'collection': 'agents',

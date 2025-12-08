@@ -7,6 +7,9 @@
 #include "EventConverter.hpp"      // Event format converter
 #include "AgentId.hpp"             // UUID-based agent identification
 #include "Logger.hpp"              // Logging framework
+#include "Heartbeat.hpp"           // Agent health monitoring (Phase-1)
+#include "Updater.hpp"             // Agent self-update (Phase-1)
+#include "EventSpillover.hpp"      // Disk spillover for offline events
 #ifdef ENABLE_WEBSOCKET
 #include "WebSocketClient.hpp"     // WebSocket for real-time commands
 #endif
@@ -42,13 +45,24 @@ std::string sanitizeUtf8(const std::string& input);
 std::string g_agentId;  // UUID-based agent identifier (set once at startup)
 std::string g_agentVersion = AGENT_VERSION;  // From CMake (single source of truth)
 
-// Graceful shutdown flag - set by console control handler
+// Graceful shutdown flag - set by console control handler or service control handler
 std::atomic<bool> g_shutdownRequested{false};
+
+// Service mode flag - true when running as Windows Service
+static bool g_serviceMode = false;
 
 #ifdef ENABLE_WEBSOCKET
 WebSocketClient* g_webSocketClient = nullptr;  // WebSocket for real-time commands
 #endif
 HttpClient* g_httpClient = nullptr;                 // Active now
+
+// ============================================
+// Shutdown Request (called by ServiceManager)
+// ============================================
+void requestAgentShutdown() {
+    LOG_INFO("Shutdown requested via external signal");
+    g_shutdownRequested = true;
+}
 
 // ============================================
 // Console Control Handler for Graceful Shutdown
@@ -72,19 +86,29 @@ BOOL WINAPI ConsoleCtrlHandler(DWORD ctrlType) {
 }
 
 // ============================================
-// Main Function
+// Agent Main Function
 // ============================================
-int main() {
-    // Register console control handler for graceful shutdown
-    SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
+// This is called by:
+// - main.cpp in console mode (serviceMode = false)
+// - ServiceManager.cpp in service mode (serviceMode = true)
+// ============================================
+int runAgent(bool serviceMode) {
+    // Store service mode for later use
+    g_serviceMode = serviceMode;
     
-    // Initialize logging framework
+    // Register console control handler only in console mode
+    // In service mode, ServiceManager handles shutdown signals
+    if (!serviceMode) {
+        SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
+    }
+    
+    // Logging is already initialized by main.cpp, but ensure it's set
     Logger::instance().setLevel(LogLevel::LVL_DEBUG);
     Logger::instance().setLogFile("edr-agent.log");
     
     LOG_INFO("========================================");
     LOG_INFO("  EDR Agent v" + g_agentVersion);
-    LOG_INFO("  HTTP Mode (WebSocket added for future)");
+    LOG_INFO("  Mode: " + std::string(serviceMode ? "Windows Service" : "Console"));
     LOG_INFO("========================================");
     
     try {
@@ -121,22 +145,34 @@ int main() {
         g_agentId = AgentId::getOrCreate(configDir);
         LOG_INFO("Agent ID: " + g_agentId);
         
+        // Step 1.6: Configure Event Spillover
+        LOG_INFO("[1.6/4] Configuring Event Spillover...");
+        SpilloverConfig spillConfig;
+        spillConfig.maxDiskMB = 100;  // 100 MB max disk usage
+        spillConfig.maxEventsPerFile = 1000;
+        SPILL.configure(spillConfig);
+        
+        // Step 1.7: Configure Log Rotation
+        Logger::instance().setMaxLogSize(10 * 1024 * 1024);  // 10 MB
+        Logger::instance().setMaxLogFiles(5);                 // Keep 5 rotated files
+        
         // Step 2: Initialize HTTP Client
         LOG_INFO("[2/4] Initializing HTTP client...");
         std::string httpServer = configReader.getHttpServer();
         int httpPort = configReader.getHttpPort();
         std::string apiPath = configReader.getApiPath();
         std::string authToken = configReader.getAuthToken();
+        bool useHttps = configReader.useHttps();
         
         if (authToken.empty()) {
             LOG_WARN("No authentication token configured!");
         }
         
-        HttpClient httpClient(httpServer, httpPort, apiPath, authToken);
+        HttpClient httpClient(httpServer, httpPort, apiPath, authToken, useHttps);
         g_httpClient = &httpClient;
         
         LOG_INFO("HTTP client initialized");
-        LOG_INFO("Target: " + httpServer + ":" + std::to_string(httpPort) + apiPath);
+        LOG_INFO("Target: " + std::string(useHttps ? "https://" : "http://") + httpServer + ":" + std::to_string(httpPort) + apiPath);
         
         // Step 2.5: Start Command Polling (unless disabled for WebSocket-only mode)
         bool disablePolling = configReader.isHttpPollingDisabled();
@@ -226,17 +262,58 @@ int main() {
         LOG_INFO("[4/4] Agent is now monitoring events");
         LOG_INFO("Active mode: HTTP | Target: " + httpServer + ":" + std::to_string(httpPort));
         LOG_INFO("Monitoring " + std::to_string(subscriptions.size()) + " event source(s)");
-        LOG_INFO("Press any key or Ctrl+C to stop...");
+        
+        // Step 5.5: Start Heartbeat System (Phase-1)
+        LOG_INFO("[5/5] Starting Heartbeat system...");
+        
+        // Set up update callback - when server says update is available
+        HeartbeatManager::instance().setUpdateCallback([](const HeartbeatResponse& response) {
+            if (response.updateAvailable) {
+                LOG_INFO("[Update] New version available: v" + response.latestVersion);
+                
+                // Set update info in Updater
+                UpdateInfo info;
+                info.version = response.latestVersion;
+                info.downloadUrl = response.updateUrl;
+                info.checksum = response.updateChecksum;
+                
+                Updater::instance().setUpdateAvailable(info);
+                
+                // Auto-update can be triggered here, or wait for manual trigger
+                // For now, just log - actual update requires service restart
+                LOG_INFO("[Update] Update queued. Will apply on next maintenance window.");
+            }
+        });
+        
+        // Start heartbeat with 30-second interval
+        HeartbeatManager::instance().start(30);
+        LOG_INFO("Heartbeat started (30s interval)");
+        
+        if (!g_serviceMode) {
+            LOG_INFO("Press any key or Ctrl+C to stop...");
+        } else {
+            LOG_INFO("Running as Windows Service. Use 'net stop EDRAgent' to stop.");
+        }
 
-        // Main event loop - exits on keyboard press OR shutdown signal
-        while (!g_shutdownRequested && !_kbhit()) {
-            Sleep(100); // Sleep 100ms
+        // Main event loop
+        // In service mode: only exits when g_shutdownRequested is set
+        // In console mode: also exits on keyboard press
+        while (!g_shutdownRequested) {
+            // In console mode, also check for keyboard input
+            if (!g_serviceMode && _kbhit()) {
+                break;
+            }
+            Sleep(100); // Sleep 100ms to avoid busy-waiting
         }
 
         // ==========================================
         // Graceful Shutdown
         // ==========================================
         LOG_INFO("[Shutdown] Stopping services...");
+
+        // Stop heartbeat first
+        LOG_INFO("Stopping heartbeat...");
+        HeartbeatManager::instance().stop();
 
         // Stop command polling
         LOG_INFO("Stopping command polling...");
@@ -258,10 +335,10 @@ int main() {
         }
 #endif
 
-        // Close HTTP client
+        // Disconnect HTTP client (don't delete - it's a stack variable)
         if (g_httpClient != nullptr) {
-            LOG_INFO("Closing HTTP client...");
-            delete g_httpClient;
+            LOG_INFO("Disconnecting HTTP client...");
+            g_httpClient->disconnect();
             g_httpClient = nullptr;
         }
         
@@ -378,9 +455,24 @@ DWORD ProcessEvent(EVT_HANDLE hEvent) {
                     if (result.isSuccess()) {
                         LOG_INFO("Batch sent successfully");
                         eventBuffer.clear();
+                        
+                        // Try to recover any spilled events
+                        if (SPILL.hasSpilledEvents()) {
+                            LOG_INFO("[Spillover] Recovering spilled events...");
+                            auto spilledEvents = SPILL.recoverEvents(100);  // Recover 100 at a time
+                            if (!spilledEvents.empty()) {
+                                auto spillResult = g_httpClient->sendTelemetryBatch(spilledEvents);
+                                if (spillResult.isSuccess()) {
+                                    SPILL.confirmEventsSent(spilledEvents.size());
+                                    LOG_INFO("[Spillover] Recovered " + std::to_string(spilledEvents.size()) + " events");
+                                }
+                            }
+                        }
                     } else {
-                        // Use error codes for specific error handling
-                        LOG_ERROR("Failed to send batch: " + result.errorDescription() + " (code: " + std::to_string(result.code()) + ")");
+                        // SPILLOVER: Save failed events to disk instead of dropping
+                        LOG_ERROR("Failed to send batch: " + result.errorDescription());
+                        LOG_WARN("[Spillover] Saving " + std::to_string(eventBuffer.size()) + " events to disk...");
+                        SPILL.spillEvents(eventBuffer);
                         eventBuffer.clear(); 
                     }
                 }

@@ -55,6 +55,7 @@ endif()
 # Source Files
 # ==========================================
 set(AGENT_SOURCES
+    main.cpp
     EdrAgent.cpp
     HttpClient.cpp
     ConfigReader.cpp
@@ -63,6 +64,10 @@ set(AGENT_SOURCES
     CommandProcessor.cpp
     AgentId.cpp
     Logger.cpp
+    ServiceManager.cpp
+    Heartbeat.cpp
+    Updater.cpp
+    EventSpillover.cpp
 )
 
 if(ENABLE_WEBSOCKET)
@@ -86,6 +91,8 @@ target_link_libraries(edr-agent PRIVATE
     winhttp
     wevtapi
     iphlpapi
+    bcrypt
+    psapi
 )
 
 if(ENABLE_WEBSOCKET)

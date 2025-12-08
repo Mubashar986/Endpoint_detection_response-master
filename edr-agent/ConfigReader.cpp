@@ -240,3 +240,13 @@ int ConfigReader::getConfigVersion()
     }
     return 1;  // Default version
 }
+
+bool ConfigReader::useHttps()
+{
+    // Check if HTTPS is enabled (for ngrok/production)
+    // Default: false for backward compatibility with localhost dev
+    if (jsonObject.find("use_https") != jsonObject.end()) {
+        return jsonObject["use_https"].get<bool>();
+    }
+    return false;
+}

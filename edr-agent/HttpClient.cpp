@@ -6,20 +6,22 @@
 #include <vector>
 
 HttpClient::HttpClient(const std::string& serverHost, int serverPort, 
-                       const std::string& apiPath, const std::string& token) {
+                       const std::string& apiPath, const std::string& token,
+                       bool https) {
     server = stringToWstring(serverHost);
     port = serverPort;
     path = stringToWstring(apiPath);
     authToken = stringToWstring("Token " + token);
+    useHttps = https;
     
     // Initialize handles to NULL
     hSession = NULL;
     hConnect = NULL;
     
-    LOG_INFO("HTTP Client initialized for Django backend (Keep-Alive)");
+    LOG_INFO("HTTP Client initialized (" + std::string(useHttps ? "HTTPS" : "HTTP") + ")");
 }
 
-HttpClient::HttpClient() : port(0), hSession(NULL), hConnect(NULL) {}
+HttpClient::HttpClient() : port(0), hSession(NULL), hConnect(NULL), useHttps(false) {}
 
 HttpClient::~HttpClient() {
     disconnect();
@@ -306,10 +308,13 @@ bool HttpClient::compressData(const std::string& data, std::vector<BYTE>& compre
 bool HttpClient::sendCompressedHttpPost(const std::vector<BYTE>& compressedData) {
     if (!ensureConnection()) return false;
     
+    // Use WINHTTP_FLAG_SECURE for HTTPS connections
+    DWORD flags = useHttps ? WINHTTP_FLAG_SECURE : 0;
+    
     HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"POST", L"/api/v1/telemetry/",
                                             NULL, WINHTTP_NO_REFERER,
                                             WINHTTP_DEFAULT_ACCEPT_TYPES,
-                                            0);
+                                            flags);
     if (!hRequest) {
         LOG_ERROR("WinHttpOpenRequest failed: " + std::to_string(GetLastError()));
         // If request creation fails, maybe connection is dead?
@@ -386,8 +391,11 @@ bool HttpClient::sendCompressedHttpPost(const std::vector<BYTE>& compressedData)
 bool HttpClient::sendHttpPost(const std::string& jsonData) {
     if (!ensureConnection()) return false;
     
+    // Use WINHTTP_FLAG_SECURE for HTTPS connections
+    DWORD flags = useHttps ? WINHTTP_FLAG_SECURE : 0;
+    
     HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"POST", path.c_str(), NULL,
-                                             WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, 0);
+                                             WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
     if (!hRequest) {
         disconnect();
         return false;
@@ -406,7 +414,7 @@ bool HttpClient::sendHttpPost(const std::string& jsonData) {
         disconnect();
         if (ensureConnection()) {
              hRequest = WinHttpOpenRequest(hConnect, L"POST", path.c_str(), NULL,
-                                           WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, 0);
+                                           WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
              if (hRequest) {
                  WinHttpAddRequestHeaders(hRequest, headers.c_str(), -1L, WINHTTP_ADDREQ_FLAG_ADD | WINHTTP_ADDREQ_FLAG_REPLACE);
                  bResults = WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0,

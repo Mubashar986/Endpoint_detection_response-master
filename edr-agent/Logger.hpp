@@ -36,6 +36,10 @@ public:
     void setLogFile(const std::string& path);
     void enableConsole(bool enable);
     
+    // Log rotation configuration
+    void setMaxLogSize(size_t maxBytes);    // Max size before rotation (default 10MB)
+    void setMaxLogFiles(int maxFiles);      // Max rotated files to keep (default 5)
+    
     // Core logging method
     void log(LogLevel level, const std::string& message,
              const char* file = nullptr, int line = 0);
@@ -51,13 +55,23 @@ private:
     std::mutex m_mutex;              // Thread safety
     LogLevel m_level;                // Current log level
     std::ofstream m_logFile;         // File output stream
+    std::string m_logPath;           // Path to current log file
     bool m_consoleEnabled;           // Console output flag
     bool m_fileEnabled;              // File output flag
+    
+    // Log rotation settings
+    size_t m_maxLogSize;             // Max log size in bytes (default 10MB)
+    int m_maxLogFiles;               // Max rotated files to keep
+    size_t m_currentLogSize;         // Current log file size
     
     // Helper methods
     std::string levelToString(LogLevel level);
     std::string getTimestamp();
     std::string formatFilename(const char* path);
+    
+    // Log rotation
+    void checkRotation();
+    void rotateLog();
 };
 
 // ============================================

@@ -17,14 +17,17 @@ private:
     int port;
     std::wstring path;
     std::wstring authToken;
+    bool useHttps;  // HTTPS support for ngrok/production
     std::vector<std::pair<std::wstring, std::wstring>> customHeaders;
 public:
     HttpClient(); // Default constructor
     HttpClient(const std::string& serverHost, int serverPort, 
-               const std::string& apiPath, const std::string& token);
+               const std::string& apiPath, const std::string& token,
+               bool useHttps = false);  // Added HTTPS flag
     ~HttpClient();
    
     void addHeader(const std::string& key, const std::string& value);
+    void disconnect();  // Made public for graceful shutdown
     std::string GET(const std::string& endpoint);
     std::string POST(const std::string& endpoint, const std::string& data);
 
@@ -38,7 +41,6 @@ private:
     HINTERNET hConnect = NULL;
     
     bool connect();
-    void disconnect();
     bool ensureConnection();
 
     bool sendHttpPost(const std::string& jsonData);

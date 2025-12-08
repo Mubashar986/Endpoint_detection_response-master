@@ -79,3 +79,33 @@ class TelemetrySerializer(serializers.Serializer):
             )
         
         return data
+
+
+class HeartbeatSerializer(serializers.Serializer):
+    """
+    Serializer for agent heartbeat data.
+    Validates health metrics sent by EDR agents.
+    """
+    # Agent identification
+    agent_id = serializers.CharField(required=True, max_length=64)
+    agent_version = serializers.CharField(required=False, default='unknown', max_length=32)
+    hostname = serializers.CharField(required=False, default='unknown', max_length=255)
+    
+    # Timestamp
+    timestamp = serializers.DateTimeField(required=False)
+    
+    # Status
+    status = serializers.CharField(required=False, default='running', max_length=32)
+    
+    # System metrics
+    cpu_percent = serializers.FloatField(required=False, default=0, min_value=0, max_value=100)
+    memory_mb = serializers.IntegerField(required=False, default=0, min_value=0)
+    uptime_seconds = serializers.IntegerField(required=False, default=0, min_value=0)
+    
+    # Event statistics
+    events_sent = serializers.IntegerField(required=False, default=0, min_value=0)
+    events_queued = serializers.IntegerField(required=False, default=0, min_value=0)
+    
+    # Connection health
+    ws_reconnect_failures = serializers.IntegerField(required=False, default=0, min_value=0)
+    http_failures = serializers.IntegerField(required=False, default=0, min_value=0)

@@ -2,6 +2,7 @@
 from django.urls import path
 from . import views, dashboard_views, admin_views
 from . import command_views
+from . import heartbeat_views
 
 app_name = 'ingestion'
 
@@ -23,6 +24,9 @@ urlpatterns = [
 
     # ========== EXISTING TELEMETRY API ==========
     path('api/v1/telemetry/', views.telemetry_endpoint, name='telemetry'),
+    
+    # ========== HEARTBEAT API (New for Phase-1) ==========
+    path('api/v1/heartbeat/', heartbeat_views.heartbeat_endpoint, name='heartbeat'),
     
     # ========== RESPONSE ACTION APIs (New) ==========
     # Agent Communication

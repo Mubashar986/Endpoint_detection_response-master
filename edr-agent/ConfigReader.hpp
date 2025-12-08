@@ -30,6 +30,7 @@ public:
     bool hasHttpConfig();
     bool hasWebSocketConfig();
     bool isHttpPollingDisabled();
+    bool useHttps();  // HTTPS support for ngrok/production
     
     // Version info
     int getConfigVersion();
