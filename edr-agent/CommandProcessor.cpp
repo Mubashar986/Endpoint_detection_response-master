@@ -3,6 +3,7 @@
 #include "ConfigReader.hpp"
 #include "HttpClient.hpp"
 #include "Logger.hpp"
+#include "CommandAllowlist.hpp"
 #include <iostream>
 
 // External reference to global agent ID (UUID from EdrAgent.cpp)
@@ -52,13 +53,22 @@ namespace CommandProcessor
             commandType = commandJson.at("type").get<std::string>();
             
             // Debug: Log received command
-            std::cout << "[CommandProcessor] Received type: " << commandType << std::endl;
-            std::cout << "[CommandProcessor] Full JSON: " << command.substr(0, 200) << "..." << std::endl;
+            LOG_DEBUG("[CommandProcessor] Received type: " + commandType);
+            LOG_DEBUG("[CommandProcessor] Full JSON: " + command.substr(0, 200) + "...");
         } 
         catch (const std::exception& e) 
         {
-            std::cerr << "[CommandProcessor] Parse error: " << e.what() << std::endl;
+            LOG_ERROR("[CommandProcessor] Parse error: " + std::string(e.what()));
             return R"({"type": "error", "status": "invalid JSON or missing 'type' field"})";
+        }
+
+        // =====================================================
+        // SECURITY: Validate command against allowlist FIRST
+        // =====================================================
+        auto allowlistResult = CommandAllowlist::validate(commandType);
+        if (allowlistResult.isError()) {
+            LOG_WARN("[SECURITY] Command blocked: " + commandType + " (code: " + std::to_string(allowlistResult.code()) + ")");
+            return json({{"type", "error"}, {"status", "command not allowed"}, {"command", commandType}}).dump(4);
         }
 
         // =====================================================
@@ -70,22 +80,24 @@ namespace CommandProcessor
             json params = commandJson.value("parameters", json::object());
             std::string commandId = commandJson.value("command_id", "");
             
-            std::cout << "[CommandProcessor] WebSocket command received!" << std::endl;
-            std::cout << "  → Command ID: " << commandId << std::endl;
-            std::cout << "  → Action: " << action << std::endl;
-            std::cout << "  → Params: " << params.dump() << std::endl;
-            
-            // Execute the response action
-            if (action == "kill_process" || action == "isolate_host" || action == "deisolate_host") {
-                json result = executeResponseCommand(action, params);
-                result["command_id"] = commandId;  // Include command_id in response
-                result["type"] = "response";        // Mark as response
-                std::cout << "[CommandProcessor] Result: " << result.dump() << std::endl;
-                return result.dump(4);
+            // Validate action against allowlist
+            auto actionResult = CommandAllowlist::validateAction(action);
+            if (actionResult.isError()) {
+                LOG_WARN("[SECURITY] Action blocked: " + action);
+                return json({{"type", "error"}, {"status", "action not allowed"}, {"action", action}}).dump(4);
             }
             
-            std::cerr << "[CommandProcessor] Unknown action: " << action << std::endl;
-            return json({{"type", "error"}, {"status", "unknown action"}, {"action", action}}).dump(4);
+            LOG_INFO("[CommandProcessor] WebSocket command received!");
+            LOG_INFO("  → Command ID: " + commandId);
+            LOG_INFO("  → Action: " + action);
+            LOG_DEBUG("  → Params: " + params.dump());
+            
+            // Execute the response action
+            json result = executeResponseCommand(action, params);
+            result["command_id"] = commandId;  // Include command_id in response
+            result["type"] = "response";        // Mark as response
+            LOG_INFO("[CommandProcessor] Result: " + result.dump());
+            return result.dump(4);
         }
 
         // Check for Response Actions (direct type, for backward compatibility with HTTP polling)
@@ -349,7 +361,7 @@ namespace CommandProcessor
         client.addHeader("Authorization", "Token " + authToken);
         client.addHeader("X-Agent-ID", g_agentId); // Use UUID-based Agent ID
 
-        std::cout << "[CommandPoll] Thread started. Polling " << serverUrl << std::endl;
+        LOG_INFO("[CommandPoll] Thread started. Polling " + serverUrl);
 
         while (pollingActive) {
             try {
@@ -363,7 +375,14 @@ namespace CommandProcessor
                         std::string commandType = commandJson["type"];
                         json params = commandJson.value("parameters", json::object());
                         
-                        std::cout << "[CommandPoll] Received command: " << commandType << std::endl;
+                        // SECURITY: Validate command against allowlist
+                        auto allowlistResult = CommandAllowlist::validate(commandType);
+                        if (allowlistResult.isError()) {
+                            LOG_WARN("[SECURITY] Polled command blocked: " + commandType);
+                            continue;  // Skip unauthorized commands
+                        }
+                        
+                        LOG_INFO("[CommandPoll] Received command: " + commandType);
 
                         // Execute command
                         json result = executeResponseCommand(commandType, params);
@@ -374,7 +393,7 @@ namespace CommandProcessor
                     }
                 }
             } catch (const std::exception& e) {
-                std::cerr << "[CommandPoll] Error: " << e.what() << std::endl;
+                LOG_ERROR("[CommandPoll] Error: " + std::string(e.what()));
             }
             
             // Interruptible sleep for 5 seconds
@@ -388,7 +407,7 @@ namespace CommandProcessor
             pollingActive = true;
             pollThread = std::thread(pollCommandsLoop);
             pollThread.detach();
-            std::cout << "[CommandPoll] Service Started" << std::endl;
+            LOG_INFO("[CommandPoll] Service Started");
         }
     }
 

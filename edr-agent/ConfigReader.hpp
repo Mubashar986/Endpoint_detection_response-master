@@ -33,6 +33,9 @@ public:
     
     // Version info
     int getConfigVersion();
+    
+    // Get raw JSON for validation
+    const nlohmann::json& getJson() const { return jsonObject; }
 
 private:
     std::filesystem::path configFilePath;

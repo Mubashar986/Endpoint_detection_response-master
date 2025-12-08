@@ -11,6 +11,7 @@
 #include "WebSocketClient.hpp"     // WebSocket for real-time commands
 #endif
 #include "ConfigReader.hpp"
+#include "ConfigValidator.hpp"     // Config validation
 #include "pugixml.hpp"
 
 #include <Windows.h>
@@ -90,6 +91,14 @@ int main() {
         // Step 1: Read Configuration
         LOG_INFO("[1/4] Reading configuration file...");
         ConfigReader configReader("config.json");
+        
+        // Validate configuration BEFORE using it
+        auto validationResult = ConfigValidator::validate(configReader.getJson());
+        if (validationResult.isError()) {
+            LOG_FATAL("Config validation failed: " + validationResult.errorDescription());
+            return 1;
+        }
+        LOG_INFO("Config validation passed");
         
         // Check available modes
         bool hasHttp = configReader.hasHttpConfig();
