@@ -1,8 +1,18 @@
 cmake_minimum_required(VERSION 3.15)
+
+# CRITICAL: Must be BEFORE project() to match vcpkg x64-windows-static triplet
+# vcpkg static libs use /MT, so we MUST use /MT too
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 project(edr-agent VERSION 1.0.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# MSVC requires /bigobj for Boost.Beast SSL templates (many sections)
+if(MSVC)
+    add_compile_options(/bigobj)
+endif()
 
 # ==========================================
 # Version Header Generation
@@ -123,6 +133,9 @@ if(MSVC)
     add_compile_options($<$<CONFIG:Release>:/MT>)
     add_compile_options($<$<CONFIG:Debug>:/MTd>)
     
+    # Add /bigobj for Boost.Beast SSL templates (many sections)
+    add_compile_options(/bigobj)
+    
     # Define Windows compatibility
     target_compile_definitions(edr-agent PRIVATE
         _WIN32_WINNT=0x0A00
@@ -134,23 +147,34 @@ if(MSVC)
 endif()
 
 # ==========================================
-# Post-Build
+# Post-Build: Copy config files to output directory
 # ==========================================
-configure_file(
-    ${CMAKE_CURRENT_SOURCE_DIR}/config.json
-    ${CMAKE_BINARY_DIR}/bin/config.json
-    COPYONLY
+# MSVC puts output in build/Release or build/Debug, not build/bin
+# Use post-build command to copy config files next to the executable
+
+add_custom_command(TARGET edr-agent POST_BUILD
+    # Copy config.json
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/config.json"
+        "$<TARGET_FILE_DIR:edr-agent>/config.json"
+    # Copy sysmon-config.xml
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/sysmon-config.xml"
+        "$<TARGET_FILE_DIR:edr-agent>/sysmon-config.xml"
+    COMMENT "Copying config files to output directory..."
 )
 
+# Copy auth.secret if it exists (optional file)
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/auth.secret")
-    configure_file(
-        ${CMAKE_CURRENT_SOURCE_DIR}/auth.secret
-        ${CMAKE_BINARY_DIR}/bin/auth.secret
-        COPYONLY
+    add_custom_command(TARGET edr-agent POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/auth.secret"
+            "$<TARGET_FILE_DIR:edr-agent>/auth.secret"
+        COMMENT "Copying auth.secret to output directory..."
     )
 endif()
 
 message(STATUS "========================================")
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
-message(STATUS "Output: ${CMAKE_BINARY_DIR}/bin")
+message(STATUS "Config files will be copied next to executable")
 message(STATUS "========================================")

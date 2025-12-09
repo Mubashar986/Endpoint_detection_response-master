@@ -218,6 +218,9 @@ class AgentConsumer(AsyncWebsocketConsumer):
         """
         command = event.get("command", {})
         
+        # DEBUG: Confirm this handler is being called
+        print(f"[DEBUG] agent_command handler invoked with: {event}")
+        
         logger.info(f"[WebSocket] Sending command to agent: {command}")
         print(f"[→] Sending command to agent: {command}")
         

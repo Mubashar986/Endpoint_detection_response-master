@@ -28,7 +28,6 @@ AllowNoIcons=yes
 ; Output settings
 OutputDir=output
 OutputBaseFilename=EDRAgent-Setup-{#MyAppVersion}
-SetupIconFile=resources\icon.ico
 Compression=lzma2
 SolidCompression=yes
 
@@ -53,7 +52,7 @@ Name: "installsysmon"; Description: "Install/Update Sysmon (Required for event m
 [Files]
 ; Main application files
 Source: "..\edr-agent\build\Release\edr-agent.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\edr-agent\config.json"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist
+; Note: config.json is generated during install from user input (ServerConfigPage)
 Source: "..\edr-agent\sysmon-config.xml"; DestDir: "{app}"; Flags: ignoreversion
 
 ; Sysmon files (user must provide Sysmon64.exe)
@@ -69,13 +68,68 @@ Name: "{group}\Uninstall EDR Agent"; Filename: "{uninstallexe}"
 
 [Code]
 var
+  // Server Configuration Page
+  ServerConfigPage: TInputQueryWizardPage;
+  ServerUrl: String;
+  ServerPort: String;
+  UseHttpsCheckBox: TNewCheckBox;
+  EnablePollingCheckBox: TNewCheckBox;
+  UseHttps: Boolean;
+  EnablePolling: Boolean;
+  
+  // Auth Token Page
   AuthTokenPage: TInputQueryWizardPage;
   AuthToken: String;
 
-// Create custom page for auth token input
+// Create custom pages for server config and auth token
 procedure InitializeWizard;
+var
+  CheckBoxLabel: TNewStaticText;
 begin
-  AuthTokenPage := CreateInputQueryPage(wpSelectTasks,
+  // ============================================
+  // Page 1: Server Configuration
+  // ============================================
+  ServerConfigPage := CreateInputQueryPage(wpSelectTasks,
+    'Server Configuration',
+    'Enter your EDR server connection details',
+    'Specify the server address where this agent will send telemetry data. ' +
+    'For ngrok testing, use your ngrok URL (e.g., abc123.ngrok.io).');
+  
+  ServerConfigPage.Add('Server Address (e.g., localhost or abc123.ngrok.io):', False);
+  ServerConfigPage.Add('Server Port (e.g., 8000 for HTTP, 443 for HTTPS):', False);
+  
+  // Set defaults
+  ServerConfigPage.Values[0] := 'localhost';
+  ServerConfigPage.Values[1] := '8000';
+  
+  // Add HTTPS checkbox
+  CheckBoxLabel := TNewStaticText.Create(ServerConfigPage);
+  CheckBoxLabel.Parent := ServerConfigPage.Surface;
+  CheckBoxLabel.Caption := 'Connection Security:';
+  CheckBoxLabel.Top := ServerConfigPage.Edits[1].Top + ServerConfigPage.Edits[1].Height + 16;
+  CheckBoxLabel.Left := 0;
+  
+  UseHttpsCheckBox := TNewCheckBox.Create(ServerConfigPage);
+  UseHttpsCheckBox.Parent := ServerConfigPage.Surface;
+  UseHttpsCheckBox.Caption := 'Use HTTPS/WSS (recommended for production and ngrok)';
+  UseHttpsCheckBox.Top := CheckBoxLabel.Top + CheckBoxLabel.Height + 4;
+  UseHttpsCheckBox.Left := 0;
+  UseHttpsCheckBox.Width := ServerConfigPage.SurfaceWidth;
+  UseHttpsCheckBox.Checked := False;
+  
+  // Add HTTP Polling checkbox (fallback when WebSocket unavailable)
+  EnablePollingCheckBox := TNewCheckBox.Create(ServerConfigPage);
+  EnablePollingCheckBox.Parent := ServerConfigPage.Surface;
+  EnablePollingCheckBox.Caption := 'Enable HTTP Command Polling (fallback if WebSocket unavailable)';
+  EnablePollingCheckBox.Top := UseHttpsCheckBox.Top + UseHttpsCheckBox.Height + 8;
+  EnablePollingCheckBox.Left := 0;
+  EnablePollingCheckBox.Width := ServerConfigPage.SurfaceWidth;
+  EnablePollingCheckBox.Checked := True;  // Enabled by default for reliability
+  
+  // ============================================
+  // Page 2: Authentication Token
+  // ============================================
+  AuthTokenPage := CreateInputQueryPage(ServerConfigPage.ID,
     'Authentication Token',
     'Enter your EDR server authentication token',
     'The token is required for the agent to communicate with the server. ' +
@@ -84,11 +138,49 @@ begin
   AuthTokenPage.Values[0] := '';
 end;
 
-// Validate auth token is provided
+// Validate server config and auth token
 function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  PortNum: Integer;
 begin
   Result := True;
   
+  // Validate Server Configuration Page
+  if CurPageID = ServerConfigPage.ID then
+  begin
+    ServerUrl := ServerConfigPage.Values[0];
+    ServerPort := ServerConfigPage.Values[1];
+    UseHttps := UseHttpsCheckBox.Checked;
+    EnablePolling := EnablePollingCheckBox.Checked;
+    
+    if ServerUrl = '' then
+    begin
+      MsgBox('Please enter a server address.', mbError, MB_OK);
+      Result := False;
+    end
+    else if ServerPort = '' then
+    begin
+      // Smart default: use 443 for HTTPS, 8000 for HTTP
+      if UseHttps then
+        ServerPort := '443'
+      else
+        ServerPort := '8000';
+      // Update the field so user sees the default
+      ServerConfigPage.Values[1] := ServerPort;
+    end
+    else
+    begin
+      // Validate port is a number
+      PortNum := StrToIntDef(ServerPort, -1);
+      if (PortNum < 1) or (PortNum > 65535) then
+      begin
+        MsgBox('Please enter a valid port number (1-65535).', mbError, MB_OK);
+        Result := False;
+      end;
+    end;
+  end;
+  
+  // Validate Auth Token Page
   if CurPageID = AuthTokenPage.ID then
   begin
     AuthToken := AuthTokenPage.Values[0];
@@ -122,17 +214,77 @@ begin
   Sleep(1000);
 end;
 
-// Write auth token and install service after files are copied
+// Write config and install service after files are copied
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
-  AuthSecretPath: String;
+  AuthSecretPath, ConfigPath, ConfigContent: String;
+  HttpsStr, WsProtocol, WsUri, PollingStr: String;
 begin
   if CurStep = ssPostInstall then
   begin
     // Write auth.secret file
     AuthSecretPath := ExpandConstant('{app}\auth.secret');
     SaveStringToFile(AuthSecretPath, AuthToken, False);
+    
+    // Generate config.json with user's server settings
+    ConfigPath := ExpandConstant('{app}\config.json');
+    
+    if UseHttps then
+    begin
+      HttpsStr := 'true';
+      WsProtocol := 'wss://';
+    end
+    else
+    begin
+      HttpsStr := 'false';
+      WsProtocol := 'ws://';
+    end;
+    
+    // Set HTTP polling based on user selection
+    if EnablePolling then
+      PollingStr := 'true'
+    else
+      PollingStr := 'false';
+    
+    // For standard ports (443 for HTTPS, 80 for HTTP), omit port from WebSocket URI
+    // This is cleaner and avoids issues with proxies like ngrok
+    if (UseHttps and (ServerPort = '443')) or ((not UseHttps) and (ServerPort = '80')) then
+      WsUri := WsProtocol + ServerUrl + '/ws/agent/'
+    else
+      WsUri := WsProtocol + ServerUrl + ':' + ServerPort + '/ws/agent/';
+    
+    ConfigContent := '{' + #13#10 +
+      '  "config_version": 1,' + #13#10 +
+      '  "http_server": "' + ServerUrl + '",' + #13#10 +
+      '  "http_port": ' + ServerPort + ',' + #13#10 +
+      '  "use_https": ' + HttpsStr + ',' + #13#10 +
+      '  "api_path": "/api/v1/telemetry/",' + #13#10 +
+      '  "auth_token": "' + AuthToken + '",' + #13#10 +
+      '  "uri": "' + WsUri + '",' + #13#10 +
+      '  "websocket_uri": "' + WsUri + '",' + #13#10 +
+      '  "enable_http_polling": ' + PollingStr + ',' + #13#10 +
+      '  "event_processor": {' + #13#10 +
+      '    "source": [' + #13#10 +
+      '      {' + #13#10 +
+      '        "path": "Microsoft-Windows-Sysmon/Operational",' + #13#10 +
+      '        "query": "*"' + #13#10 +
+      '      },' + #13#10 +
+      '      {' + #13#10 +
+      '        "path": "Microsoft-Windows-PowerShell/Operational",' + #13#10 +
+      '        "query": "*[System[(EventID=4104)]]"' + #13#10 +
+      '      }' + #13#10 +
+      '    ]' + #13#10 +
+      '  },' + #13#10 +
+      '  "command_processor": {' + #13#10 +
+      '    "reverse_shell": {' + #13#10 +
+      '      "ip": "0.0.0.0",' + #13#10 +
+      '      "port": 4444' + #13#10 +
+      '    }' + #13#10 +
+      '  }' + #13#10 +
+      '}';
+    
+    SaveStringToFile(ConfigPath, ConfigContent, False);
     
     // Install Sysmon if selected
     if WizardIsTaskSelected('installsysmon') then

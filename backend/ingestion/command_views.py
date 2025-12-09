@@ -36,7 +36,7 @@ def push_command_via_websocket(command):
     
     # Build the command message
     message = {
-        "type": "agent_command",  # This calls AgentConsumer.agent_command()
+        "type": "agent.command",  # Django Channels converts dots to underscores: agent.command → agent_command()
         "command": {
             "type": "command",
             "command_id": command.command_id,

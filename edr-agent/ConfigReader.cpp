@@ -224,10 +224,16 @@ bool ConfigReader::hasWebSocketConfig()
 
 bool ConfigReader::isHttpPollingDisabled()
 {
-    // Check if HTTP polling is disabled (for WebSocket-only testing)
+    // New field: enable_http_polling (true = enabled, false = disabled)
+    if (jsonObject.find("enable_http_polling") != jsonObject.end()) {
+        return !jsonObject["enable_http_polling"].get<bool>();  // Return opposite
+    }
+    
+    // Legacy field: disable_http_polling (true = disabled, false = enabled)
     if (jsonObject.find("disable_http_polling") != jsonObject.end()) {
         return jsonObject["disable_http_polling"].get<bool>();
     }
+    
     return false;  // Default: HTTP polling enabled
 }
 

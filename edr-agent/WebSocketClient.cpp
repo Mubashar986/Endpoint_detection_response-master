@@ -5,26 +5,29 @@
 #include <sstream>
 #include <regex>
 #include <nlohmann/json.hpp>
+#include <openssl/ssl.h>  // For SSL_set_tlsext_host_name (SNI)
 
 // ============================================================
 // Constructor
 // ============================================================
-// The initialization list initializes Beast components in order:
-// 1. m_ioc      - The I/O context (event loop)
-// 2. m_resolver - Needs a reference to the I/O context
-// 3. m_ws       - Uses beast::tcp_stream for timeout support
-// ============================================================
 WebSocketClient::WebSocketClient()
     : m_resolver(net::make_strand(m_ioc))
-    , m_ws(std::make_unique<websocket::stream<beast::tcp_stream>>(net::make_strand(m_ioc)))
+    , m_ssl_ctx(ssl::context::tlsv12_client)
+    , m_ws(nullptr)
+    , m_wss(nullptr)
+    , m_use_ssl(false)
     , m_open(false)
     , m_should_reconnect(true)
     , m_retry_count(0)
-    , m_max_retries(0)           // 0 = infinite retries
-    , m_retry_delay_ms(5000)     // Start with 5 second delay
-    , m_max_retry_delay_ms(60000) // Max 60 second delay
+    , m_max_retries(0)
+    , m_retry_delay_ms(5000)
+    , m_max_retry_delay_ms(60000)
 {
-    LOG_INFO("WebSocket Beast client initialized (auto-reconnect enabled)");
+    // Configure SSL context for WSS connections
+    m_ssl_ctx.set_default_verify_paths();
+    m_ssl_ctx.set_verify_mode(ssl::verify_peer);
+    
+    LOG_INFO("WebSocket client initialized (ws/wss supported)");
 }
 
 WebSocketClient::~WebSocketClient() {
@@ -65,29 +68,38 @@ bool WebSocketClient::parse_uri(const std::string& uri,
 // ============================================================
 // Connect
 // ============================================================
-// 1. Parse the URI
-// 2. Start async DNS resolution
-// 3. Start the I/O thread
-// ============================================================
 void WebSocketClient::connect(const std::string& uri) {
-    // Store URI for potential reconnection
     m_uri = uri;
     
     if (!parse_uri(uri, m_host, m_port, m_path)) {
         return;
     }
     
-    LOG_INFO("WebSocket connecting to " + m_host + ":" + m_port + m_path);
+    // Detect SSL from URI scheme
+    m_use_ssl = (uri.substr(0, 4) == "wss:");
     
-    // Start the async resolution chain
-    // Each step calls the next: resolve -> connect -> handshake -> read
+    LOG_INFO("WebSocket connecting to " + m_host + ":" + m_port + m_path + 
+             (m_use_ssl ? " (SSL/TLS)" : " (plain)"));
+    
+    // Create appropriate stream type
+    if (m_use_ssl) {
+        m_wss = std::make_unique<websocket::stream<beast::ssl_stream<beast::tcp_stream>>>(
+            net::make_strand(m_ioc), m_ssl_ctx);
+        m_ws.reset();
+    } else {
+        m_ws = std::make_unique<websocket::stream<beast::tcp_stream>>(
+            net::make_strand(m_ioc));
+        m_wss.reset();
+    }
+    
+    // Start async DNS resolution
     m_resolver.async_resolve(
         m_host,
         m_port,
         beast::bind_front_handler(&WebSocketClient::on_resolve, this)
     );
     
-    // Start the I/O thread (the "Chef" who processes the queue) if not already running
+    // Start I/O thread if not running
     if (!m_io_thread.joinable()) {
         m_io_thread = std::thread([this]() {
             m_ioc.run();
@@ -98,9 +110,6 @@ void WebSocketClient::connect(const std::string& uri) {
 // ============================================================
 // Async Handler: on_resolve
 // ============================================================
-// Called when DNS resolution completes.
-// Next step: Connect to the resolved IP address.
-// ============================================================
 void WebSocketClient::on_resolve(beast::error_code ec, tcp::resolver::results_type results) {
     if (ec) {
         LOG_ERROR("WebSocket resolve error: " + ec.message());
@@ -108,22 +117,24 @@ void WebSocketClient::on_resolve(beast::error_code ec, tcp::resolver::results_ty
         return;
     }
     
-    // Set a timeout for the TCP connect operation
-    // beast::tcp_stream supports expires_after (raw tcp::socket doesn't)
-    beast::get_lowest_layer(*m_ws).expires_after(std::chrono::seconds(30));
-    
-    // Connect to the IP address using the results
-    beast::get_lowest_layer(*m_ws).async_connect(
-        results,
-        beast::bind_front_handler(&WebSocketClient::on_connect, this)
-    );
+    // Set timeout and connect based on stream type
+    if (m_use_ssl && m_wss) {
+        beast::get_lowest_layer(*m_wss).expires_after(std::chrono::seconds(30));
+        beast::get_lowest_layer(*m_wss).async_connect(
+            results,
+            beast::bind_front_handler(&WebSocketClient::on_connect, this)
+        );
+    } else if (m_ws) {
+        beast::get_lowest_layer(*m_ws).expires_after(std::chrono::seconds(30));
+        beast::get_lowest_layer(*m_ws).async_connect(
+            results,
+            beast::bind_front_handler(&WebSocketClient::on_connect, this)
+        );
+    }
 }
 
 // ============================================================
 // Async Handler: on_connect
-// ============================================================
-// Called when TCP connection is established.
-// Next step: Perform WebSocket handshake.
 // ============================================================
 void WebSocketClient::on_connect(beast::error_code ec, tcp::resolver::results_type::endpoint_type ep) {
     if (ec) {
@@ -134,22 +145,59 @@ void WebSocketClient::on_connect(beast::error_code ec, tcp::resolver::results_ty
     
     LOG_INFO("WebSocket TCP connected");
     
-    // Turn off the timeout for the handshake (it has its own timeout)
-    beast::get_lowest_layer(*m_ws).expires_never();
+    if (m_use_ssl && m_wss) {
+        // For WSS: First do SSL handshake, then WebSocket handshake
+        beast::get_lowest_layer(*m_wss).expires_never();
+        
+        // Set SNI hostname (required for most servers)
+        if (!SSL_set_tlsext_host_name(m_wss->next_layer().native_handle(), m_host.c_str())) {
+            LOG_ERROR("Failed to set SNI hostname");
+            schedule_reconnect();
+            return;
+        }
+        
+        // Perform SSL handshake
+        m_wss->next_layer().async_handshake(
+            ssl::stream_base::client,
+            beast::bind_front_handler(&WebSocketClient::on_ssl_handshake, this)
+        );
+    } else if (m_ws) {
+        // For WS: Go directly to WebSocket handshake
+        beast::get_lowest_layer(*m_ws).expires_never();
+        m_ws->set_option(websocket::stream_base::timeout::suggested(beast::role_type::client));
+        m_ws->set_option(websocket::stream_base::decorator(
+            [](websocket::request_type& req) {
+                req.set(beast::http::field::user_agent, "EDR-Agent/1.0");
+            }
+        ));
+        m_ws->async_handshake(
+            m_host,
+            m_path,
+            beast::bind_front_handler(&WebSocketClient::on_handshake, this)
+        );
+    }
+}
+
+// ============================================================
+// Async Handler: on_ssl_handshake (NEW for WSS)
+// ============================================================
+void WebSocketClient::on_ssl_handshake(beast::error_code ec) {
+    if (ec) {
+        LOG_ERROR("SSL handshake error: " + ec.message());
+        schedule_reconnect();
+        return;
+    }
     
-    // Set suggested timeout settings for the websocket
-    m_ws->set_option(websocket::stream_base::timeout::suggested(beast::role_type::client));
+    LOG_INFO("SSL handshake completed");
     
-    // Set a decorator to change the User-Agent
-    m_ws->set_option(websocket::stream_base::decorator(
+    // Now do WebSocket handshake over SSL
+    m_wss->set_option(websocket::stream_base::timeout::suggested(beast::role_type::client));
+    m_wss->set_option(websocket::stream_base::decorator(
         [](websocket::request_type& req) {
             req.set(beast::http::field::user_agent, "EDR-Agent/1.0");
         }
     ));
-    
-    // Perform the WebSocket handshake
-    // The host string is used in the HTTP "Host" header
-    m_ws->async_handshake(
+    m_wss->async_handshake(
         m_host,
         m_path,
         beast::bind_front_handler(&WebSocketClient::on_handshake, this)
@@ -189,14 +237,19 @@ void WebSocketClient::on_handshake(beast::error_code ec) {
 // do_read - Start Async Read
 // ============================================================
 void WebSocketClient::do_read() {
-    // Clear the buffer before reading
     m_buffer.consume(m_buffer.size());
     
-    // Read a message into the buffer
-    m_ws->async_read(
-        m_buffer,
-        beast::bind_front_handler(&WebSocketClient::on_read, this)
-    );
+    if (m_use_ssl && m_wss) {
+        m_wss->async_read(
+            m_buffer,
+            beast::bind_front_handler(&WebSocketClient::on_read, this)
+        );
+    } else if (m_ws) {
+        m_ws->async_read(
+            m_buffer,
+            beast::bind_front_handler(&WebSocketClient::on_read, this)
+        );
+    }
 }
 
 // ============================================================
@@ -270,7 +323,6 @@ try {
 // Send
 // ============================================================
 void WebSocketClient::send(const std::string& data) {
-    // Check if connected
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         if (!m_open) {
@@ -279,22 +331,29 @@ void WebSocketClient::send(const std::string& data) {
         }
     }
     
-    // Use post to ensure thread safety
-    net::post(m_ws->get_executor(), [this, data]() {
-        beast::error_code ec;
-        
-        // Set text mode for JSON
-        m_ws->text(true);
-        
-        // Synchronous write (simpler for our use case)
-        m_ws->write(net::buffer(data), ec);
-        
-        if (ec) {
-            LOG_ERROR("WebSocket write error: " + ec.message());
-        } else {
-            LOG_DEBUG("WebSocket sent: " + data.substr(0, std::min((size_t)100, data.size())) + "...");
-        }
-    });
+    if (m_use_ssl && m_wss) {
+        net::post(m_wss->get_executor(), [this, data]() {
+            beast::error_code ec;
+            m_wss->text(true);
+            m_wss->write(net::buffer(data), ec);
+            if (ec) {
+                LOG_ERROR("WebSocket write error: " + ec.message());
+            } else {
+                LOG_DEBUG("WebSocket sent: " + data.substr(0, std::min((size_t)100, data.size())) + "...");
+            }
+        });
+    } else if (m_ws) {
+        net::post(m_ws->get_executor(), [this, data]() {
+            beast::error_code ec;
+            m_ws->text(true);
+            m_ws->write(net::buffer(data), ec);
+            if (ec) {
+                LOG_ERROR("WebSocket write error: " + ec.message());
+            } else {
+                LOG_DEBUG("WebSocket sent: " + data.substr(0, std::min((size_t)100, data.size())) + "...");
+            }
+        });
+    }
 }
 
 // ============================================================
@@ -309,25 +368,22 @@ void WebSocketClient::on_write(beast::error_code ec, std::size_t bytes_transferr
 }
 
 // ============================================================
+// ============================================================
 // Close
 // ============================================================
 void WebSocketClient::close() {
-    // Disable reconnection - user explicitly wants to close
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_should_reconnect = false;
     }
     
-    // Cancel any pending reconnect timer
     if (m_reconnect_timer) {
         m_reconnect_timer->cancel();
     }
     
-    // Check if already closed
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         if (!m_open) {
-            // Just make sure thread is cleaned up
             if (m_io_thread.joinable()) {
                 m_ioc.stop();
                 m_io_thread.join();
@@ -339,16 +395,25 @@ void WebSocketClient::close() {
     
     LOG_INFO("WebSocket closing connection...");
     
-    // Post the close to the I/O thread
-    net::post(m_ws->get_executor(), [this]() {
-        beast::error_code ec;
-        m_ws->close(websocket::close_code::normal, ec);
-        if (ec) {
-            LOG_ERROR("WebSocket close error: " + ec.message());
-        }
-    });
+    // Close appropriate stream
+    if (m_use_ssl && m_wss) {
+        net::post(m_wss->get_executor(), [this]() {
+            beast::error_code ec;
+            m_wss->close(websocket::close_code::normal, ec);
+            if (ec) {
+                LOG_ERROR("WebSocket close error: " + ec.message());
+            }
+        });
+    } else if (m_ws) {
+        net::post(m_ws->get_executor(), [this]() {
+            beast::error_code ec;
+            m_ws->close(websocket::close_code::normal, ec);
+            if (ec) {
+                LOG_ERROR("WebSocket close error: " + ec.message());
+            }
+        });
+    }
     
-    // Stop the I/O context and wait for the thread
     m_ioc.stop();
     if (m_io_thread.joinable()) {
         m_io_thread.join();

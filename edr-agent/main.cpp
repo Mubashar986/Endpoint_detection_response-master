@@ -17,11 +17,13 @@
 
 #include "ServiceManager.hpp"
 #include "Logger.hpp"
+#include "ConfigReader.hpp"
 #include "version.h"
 
 #include <iostream>
 #include <string>
 #include <cstring>
+#include <fstream>
 
 // Forward declaration of agent main function
 extern int runAgent(bool serviceMode);
@@ -49,14 +51,17 @@ void printHelp(const char* exeName) {
     std::cout << "  (no args)     Default: console mode\n\n";
     
     std::cout << "Other:\n";
-    std::cout << "  --help, -h    Show this help message\n";
-    std::cout << "  --version, -v Show version information\n\n";
+    std::cout << "  --enable-polling   Enable HTTP command polling (fallback if WebSocket unavailable)\n";
+    std::cout << "  --disable-polling  Disable HTTP command polling\n";
+    std::cout << "  --help, -h         Show this help message\n";
+    std::cout << "  --version, -v      Show version information\n\n";
     
     std::cout << "Examples:\n";
     std::cout << "  " << exeName << " --install       # Install service\n";
     std::cout << "  net start EDRAgent             # Start service\n";
     std::cout << "  net stop EDRAgent              # Stop service\n";
-    std::cout << "  " << exeName << " --uninstall    # Remove service\n\n";
+    std::cout << "  " << exeName << " --uninstall    # Remove service\n";
+    std::cout << "  " << exeName << " --enable-polling  # Enable HTTP polling in config\n\n";
 }
 
 // ============================================================================
@@ -87,7 +92,19 @@ void printStatus() {
 // Main Entry Point
 // ============================================================================
 int main(int argc, char* argv[]) {
-    // Initialize logging early
+    // CRITICAL: Set working directory to executable location FIRST
+    // Services start from C:\Windows\System32, but we need to be in our app folder
+    // This must happen BEFORE logging and config initialization
+    wchar_t exePath[MAX_PATH];
+    if (GetModuleFileNameW(NULL, exePath, MAX_PATH) != 0) {
+        wchar_t* lastSlash = wcsrchr(exePath, L'\\');
+        if (lastSlash != NULL) {
+            *lastSlash = L'\0';
+            SetCurrentDirectoryW(exePath);
+        }
+    }
+    
+    // Now initialize logging (log file will be in the correct directory)
     Logger::instance().setLevel(LogLevel::LVL_DEBUG);
     Logger::instance().setLogFile("edr-agent.log");
     
@@ -146,6 +163,30 @@ int main(int argc, char* argv[]) {
         // Service mode (called by SCM)
         if (arg == "--service") {
             mode = "service";
+        }
+        
+        // Enable HTTP polling
+        if (arg == "--enable-polling") {
+            ConfigReader config("config.json");
+            nlohmann::json json = config.getJson();
+            json["enable_http_polling"] = true;
+            json.erase("disable_http_polling");  // Remove old field if present
+            std::ofstream file("config.json");
+            file << json.dump(2);
+            std::cout << "HTTP command polling ENABLED in config.json\n";
+            return 0;
+        }
+        
+        // Disable HTTP polling
+        if (arg == "--disable-polling") {
+            ConfigReader config("config.json");
+            nlohmann::json json = config.getJson();
+            json["enable_http_polling"] = false;
+            json.erase("disable_http_polling");  // Remove old field if present
+            std::ofstream file("config.json");
+            file << json.dump(2);
+            std::cout << "HTTP command polling DISABLED in config.json\n";
+            return 0;
         }
         
         // Console mode (explicit)
