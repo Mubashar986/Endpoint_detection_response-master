@@ -23,9 +23,12 @@ public:
     
     // HTTP methods
     std::string getHttpServer();
+
     int getHttpPort();
     std::string getApiPath();
     std::string getAuthToken();
+    std::string getEnrollmentToken();
+    bool needsEnrollment();
     
     bool hasHttpConfig();
     bool hasWebSocketConfig();

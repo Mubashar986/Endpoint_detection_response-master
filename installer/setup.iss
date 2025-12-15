@@ -127,16 +127,20 @@ begin
   EnablePollingCheckBox.Checked := True;  // Enabled by default for reliability
   
   // ============================================
-  // Page 2: Authentication Token
+  // Page 2: Enrollment Token
   // ============================================
   AuthTokenPage := CreateInputQueryPage(ServerConfigPage.ID,
-    'Authentication Token',
-    'Enter your EDR server authentication token',
-    'The token is required for the agent to communicate with the server. ' +
-    'You can find this token in your EDR Dashboard under Settings > Agent Tokens.');
-  AuthTokenPage.Add('Auth Token:', False);
+    'Agent Enrollment',
+    'Enter the one-time registration token',
+    'To register this agent, you need an Enrollment Token:' + #13#10 + #13#10 +
+    '1. Log into your EDR Dashboard' + #13#10 +
+    '2. Go to Agent Management → Tokens' + #13#10 +
+    '3. Click "Generate New Token"' + #13#10 +
+    '4. Copy and paste the token below');
+  AuthTokenPage.Add('Enrollment Token:', False);
   AuthTokenPage.Values[0] := '';
 end;
+
 
 // Validate server config and auth token
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -180,22 +184,27 @@ begin
     end;
   end;
   
-  // Validate Auth Token Page
+  // Validate Enrollment Token Page
   if CurPageID = AuthTokenPage.ID then
   begin
     AuthToken := AuthTokenPage.Values[0];
     if AuthToken = '' then
     begin
-      MsgBox('Please enter an authentication token. This is required for the agent to function.', mbError, MB_OK);
+      MsgBox('Please enter an Enrollment Token.' + #13#10 + #13#10 +
+             'Generate one from your EDR Dashboard:' + #13#10 +
+             'Agent Management → Tokens → Generate New Token', mbError, MB_OK);
       Result := False;
     end
-    else if Length(AuthToken) < 10 then
+    else if Length(AuthToken) < 20 then
     begin
-      MsgBox('The authentication token appears too short. Please verify you have the correct token.', mbError, MB_OK);
+      MsgBox('The Enrollment Token appears too short.' + #13#10 + #13#10 +
+             'A valid token should be at least 40 characters.' + #13#10 +
+             'Please copy the complete token from your EDR Dashboard.', mbError, MB_OK);
       Result := False;
     end;
   end;
 end;
+
 
 // Stop existing service before installation
 function PrepareToInstall(var NeedsRestart: Boolean): String;
@@ -223,9 +232,11 @@ var
 begin
   if CurStep = ssPostInstall then
   begin
-    // Write auth.secret file
-    AuthSecretPath := ExpandConstant('{app}\auth.secret');
-    SaveStringToFile(AuthSecretPath, AuthToken, False);
+    // NOTE: We do NOT write auth.secret here!
+    // The agent will:
+    //   1. Read enrollment_token from config.json
+    //   2. Call /api/v1/enroll/ to register
+    //   3. Save the returned identity_token to auth.secret
     
     // Generate config.json with user's server settings
     ConfigPath := ExpandConstant('{app}\config.json');
@@ -260,7 +271,8 @@ begin
       '  "http_port": ' + ServerPort + ',' + #13#10 +
       '  "use_https": ' + HttpsStr + ',' + #13#10 +
       '  "api_path": "/api/v1/telemetry/",' + #13#10 +
-      '  "auth_token": "' + AuthToken + '",' + #13#10 +
+      // Enrollment token - used ONCE to register, then agent saves identity_token to auth.secret
+      '  "enrollment_token": "' + AuthToken + '",' + #13#10 +
       '  "uri": "' + WsUri + '",' + #13#10 +
       '  "websocket_uri": "' + WsUri + '",' + #13#10 +
       '  "enable_http_polling": ' + PollingStr + ',' + #13#10 +

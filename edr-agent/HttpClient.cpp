@@ -11,7 +11,11 @@ HttpClient::HttpClient(const std::string& serverHost, int serverPort,
     server = stringToWstring(serverHost);
     port = serverPort;
     path = stringToWstring(apiPath);
-    authToken = stringToWstring("Token " + token);
+    // TEACHING: AgentToken prefix
+    // =============================
+    // We prepend "AgentToken " to identify this as machine auth.
+    // The backend's AgentTokenAuthentication looks for this prefix.
+    authToken = stringToWstring("AgentToken " + token);
     useHttps = https;
     
     // Initialize handles to NULL

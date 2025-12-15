@@ -358,7 +358,8 @@ namespace CommandProcessor
         // Ensure URL doesn't end with slash for consistency
         if (serverUrl.back() == '/') serverUrl.pop_back();
 
-        client.addHeader("Authorization", "Token " + authToken);
+        // Use AgentToken for machine authentication (vs Token for human users)
+        client.addHeader("Authorization", "AgentToken " + authToken);
         client.addHeader("X-Agent-ID", g_agentId); // Use UUID-based Agent ID
 
         LOG_INFO("[CommandPoll] Thread started. Polling " + serverUrl);

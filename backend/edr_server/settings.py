@@ -64,7 +64,9 @@ INSTALLED_APPS = [
 # rest framework setting and configurations that are added here 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'ingestion.auth.AgentTokenAuthentication',
         'rest_framework.authentication.TokenAuthentication',
+
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',

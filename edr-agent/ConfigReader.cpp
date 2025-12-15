@@ -18,6 +18,15 @@ ConfigReader::ConfigReader(
     jsonObject = parseJsonFile(configFilePath);
 }
 
+/*
+ * NOTE: getAuthToken() is defined below (around line 188)
+ * Do NOT add another definition here - C++ One Definition Rule (ODR)
+ * requires each function to be defined exactly ONCE.
+ */
+
+
+
+
 nlohmann::json ConfigReader::parseJsonFile(const std::filesystem::path& configFilePath)
 {
     nlohmann::json jsonObject;
@@ -256,3 +265,72 @@ bool ConfigReader::useHttps()
     }
     return false;
 }
+
+// ============================================
+// Enrollment Methods (Phase 2)
+// ============================================
+
+std::string ConfigReader::getEnrollmentToken()
+{
+    /*
+     * TEACHING: What is an Enrollment Token?
+     * ======================================
+     * When you install a new agent, you don't want to hardcode the permanent
+     * authentication token. Instead:
+     * 1. Admin generates a one-time "enrollment_token" 
+     * 2. Installer writes it to config.json
+     * 3. Agent uses it ONCE to register with server
+     * 4. Server returns permanent "identity_token"
+     * 5. Agent saves identity_token to auth.secret
+     * 
+     * This is like a "guest pass" (enrollment) vs "employee badge" (identity).
+     */
+    
+    if (jsonObject.find("enrollment_token") != jsonObject.end()) {
+        return jsonObject["enrollment_token"];
+    }
+    return "";
+}
+
+bool ConfigReader::needsEnrollment()
+{
+    /*
+     * TEACHING: How do we know if agent needs to enroll?
+     * ==================================================
+     * Simple logic:
+     *   - If auth.secret exists AND has content → Already enrolled
+     *   - If auth.secret missing or empty → Needs enrollment
+     * 
+     * TEACHING: std::filesystem
+     * =========================
+     * C++17 added <filesystem> for cross-platform file operations.
+     * - std::filesystem::path - Represents file/folder paths
+     * - std::filesystem::exists() - Check if file exists
+     * 
+     * TEACHING: Why parent_path()?
+     * ============================
+     * configFilePath = "C:/Program Files/EDR/config.json"
+     * parent_path()  = "C:/Program Files/EDR/"
+     * 
+     * We want auth.secret in same folder as config.json.
+     */
+    
+    std::filesystem::path secretPath = configFilePath.parent_path() / "auth.secret";
+    
+    // Check if file exists
+    if (std::filesystem::exists(secretPath)) {
+        // File exists - but is it empty?
+        std::ifstream f(secretPath);
+        std::string content;
+        if (std::getline(f, content)) {
+            // Trim whitespace
+            content.erase(content.find_last_not_of(" \n\r\t") + 1);
+            if (!content.empty()) {
+                return false;  // Has token = already enrolled
+            }
+        }
+    }
+    
+    return true;  // No valid token = needs enrollment
+}
+

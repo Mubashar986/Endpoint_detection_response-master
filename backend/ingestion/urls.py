@@ -3,6 +3,9 @@ from django.urls import path
 from . import views, dashboard_views, admin_views
 from . import command_views
 from . import heartbeat_views
+from .api.enroll_views import EnrollAgentView
+from .api.token_views import TokenListCreateView, TokenRevokeView
+from .api.config_views import AgentConfigView, ConfigListCreateView, ConfigAssignView
 
 app_name = 'ingestion'
 
@@ -27,6 +30,19 @@ urlpatterns = [
     
     # ========== HEARTBEAT API (New for Phase-1) ==========
     path('api/v1/heartbeat/', heartbeat_views.heartbeat_endpoint, name='heartbeat'),
+    
+    # ========== AGENT MANAGEMENT APIs (NEW - Phase 2) ==========
+    # Enrollment - Agent registration (no auth required, uses enrollment token)
+    path('api/v1/enroll/', EnrollAgentView.as_view(), name='agent_enroll'),
+    
+    # Token Management - Admin only
+    path('api/v1/tokens/', TokenListCreateView.as_view(), name='token_list'),
+    path('api/v1/tokens/<str:token_id>/', TokenRevokeView.as_view(), name='token_revoke'),
+    
+    # Config Management - Agent config download uses AgentToken
+    path('api/v1/config/', AgentConfigView.as_view(), name='agent_config'),
+    path('api/v1/configs/', ConfigListCreateView.as_view(), name='config_list'),
+    path('api/v1/configs/<str:config_id>/assign/', ConfigAssignView.as_view(), name='config_assign'),
     
     # ========== RESPONSE ACTION APIs (New) ==========
     # Agent Communication
@@ -70,3 +86,4 @@ urlpatterns = [
     path('dashboard/agents/', dashboard_views.agents_list_view, name='agents_list'),
     path('api/v1/dashboard/agents/', dashboard_views.agents_api, name='agents_api'),
 ]
+

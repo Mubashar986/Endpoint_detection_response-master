@@ -178,27 +178,45 @@ def alert_detail_api(request, alert_id):
 @ratelimit_with_logging(key='user', rate=settings.RATELIMIT_DASHBOARD_WRITE, method='POST')
 def alert_update_status(request, alert_id):
     try:
-        alert = Alert.objects.get(alert_id=alert_id)
-    except Alert.DoesNotExist:
-        return JsonResponse({'error': 'Alert not found'}, status=404)
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
-    status = data.get('status')
-    note = data.get('note', '')
-    if status not in ['RESOLVED', 'FALSE_POSITIVE']:
-        return JsonResponse({'error': 'Invalid status'}, status=400)
-    analyst = request.user.email if request.user.is_authenticated else 'system'
-    if status == 'RESOLVED':
-        alert.mark_resolved(analyst, note)
-    elif status == 'FALSE_POSITIVE':
-        alert.mark_false_positive(analyst, note)
-    return JsonResponse({
-        'success': True,
-        'alert_id': alert.alert_id,
-        'new_status': alert.alert_status
-    })
+        try:
+            alert = Alert.objects.get(alert_id=alert_id)
+        except Alert.DoesNotExist:
+            return JsonResponse({'error': 'Alert not found'}, status=404)
+        
+        # Use request.data for DRF @api_view decorated views
+        data = request.data
+            
+        status_val = data.get('status')
+        note = data.get('note', '')
+        
+        if status_val not in ['RESOLVED', 'FALSE_POSITIVE']:
+            return JsonResponse({'error': 'Invalid status'}, status=400)
+        
+        # Get analyst identifier - fallback to username if email is empty
+        analyst = 'system'
+        if request.user.is_authenticated:
+            analyst = request.user.email or request.user.username or str(request.user)
+        
+        try:
+            if status_val == 'RESOLVED':
+                alert.mark_resolved(analyst, note)
+            elif status_val == 'FALSE_POSITIVE':
+                alert.mark_false_positive(analyst, note)
+        except Exception as e:
+            import traceback
+            print(f"Error updating alert status: {e}")
+            traceback.print_exc()
+            return JsonResponse({'error': f'Database Error: {str(e)}'}, status=500)
+            
+        return JsonResponse({
+            'success': True,
+            'alert_id': alert.alert_id,
+            'new_status': alert.alert_status
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': f'Unexpected Error: {str(e)}'}, status=500)
 
 @api_view(['POST'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
@@ -207,19 +225,32 @@ def alert_update_status(request, alert_id):
 @ratelimit_with_logging(key='user', rate=settings.RATELIMIT_DASHBOARD_WRITE, method='POST')
 def alert_assign(request, alert_id):
     try:
-        alert = Alert.objects.get(alert_id=alert_id)
-    except Alert.DoesNotExist:
-        return JsonResponse({'error': 'Alert not found'}, status=404)
-    data = json.loads(request.body)
-    analyst = data.get('analyst_email', request.user.email if request.user.is_authenticated else None)
-    if not analyst:
-        return JsonResponse({'error': 'No analyst specified'}, status=400)
-    alert.assign_to(analyst)
-    return JsonResponse({
-        'success': True,
-        'alert_id': alert.alert_id,
-        'assigned_to': analyst
-    })
+        try:
+            alert = Alert.objects.get(alert_id=alert_id)
+        except Alert.DoesNotExist:
+            return JsonResponse({'error': 'Alert not found'}, status=404)
+        
+        # Use request.data for DRF @api_view decorated views
+        data = request.data
+        # Get analyst from request or fallback to current user
+        analyst = data.get('analyst_email')
+        if not analyst and request.user.is_authenticated:
+            analyst = request.user.email or request.user.username or str(request.user)
+        
+        if not analyst:
+            return JsonResponse({'error': 'No analyst specified'}, status=400)
+            
+        alert.assign_to(analyst)
+        
+        return JsonResponse({
+            'success': True,
+            'alert_id': alert.alert_id,
+            'assigned_to': analyst
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': f'Internal Error: {str(e)}'}, status=500)
 
 @api_view(['POST'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
@@ -228,20 +259,34 @@ def alert_assign(request, alert_id):
 @ratelimit_with_logging(key='user', rate=settings.RATELIMIT_DASHBOARD_WRITE, method='POST')
 def alert_add_note(request, alert_id):
     try:
-        alert = Alert.objects.get(alert_id=alert_id)
-    except Alert.DoesNotExist:
-        return JsonResponse({'error': 'Alert not found'}, status=404)
-    data = json.loads(request.body)
-    note_text = data.get('note', '')
-    if not note_text:
-        return JsonResponse({'error': 'Note cannot be empty'}, status=400)
-    analyst = request.user.email if request.user.is_authenticated else 'system'
-    alert.add_note(analyst, note_text)
-    return JsonResponse({
-        'success': True,
-        'alert_id': alert.alert_id,
-        'note_added': note_text
-    })
+        try:
+            alert = Alert.objects.get(alert_id=alert_id)
+        except Alert.DoesNotExist:
+            return JsonResponse({'error': 'Alert not found'}, status=404)
+        
+        # Use request.data for DRF @api_view decorated views
+        data = request.data
+        note_text = data.get('note', '')
+        
+        if not note_text:
+            return JsonResponse({'error': 'Note cannot be empty'}, status=400)
+        
+        # Get analyst identifier - fallback to username if email is empty
+        analyst = 'system'
+        if request.user.is_authenticated:
+            analyst = request.user.email or request.user.username or str(request.user)
+        
+        alert.add_note(analyst, note_text)
+        
+        return JsonResponse({
+            'success': True,
+            'alert_id': alert.alert_id,
+            'note_added': note_text
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': f'Internal Error: {str(e)}'}, status=500)
 
 @api_view(['POST'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])

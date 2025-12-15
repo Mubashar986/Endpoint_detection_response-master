@@ -15,6 +15,7 @@ import logging
 
 from .models_mongo import Agent
 from .serializers import HeartbeatSerializer
+from .auth import IsAgentAuthenticated  # Custom permission for agent endpoints
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ LATEST_AGENT_VERSION = "1.0.0"
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAgentAuthenticated])
 def heartbeat_endpoint(request):
     """
     Receive heartbeat from EDR agent.

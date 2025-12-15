@@ -10,6 +10,7 @@ import json
 from .models_mongo import PendingCommand, ResponseAction
 from .rbac_decorators import require_analyst_or_admin
 from .ratelimit_utils import ratelimit_with_logging
+from .auth import IsAgentAuthenticated  # Custom permission for agent endpoints
 from django.conf import settings
 
 # ==========================================
@@ -57,7 +58,7 @@ def push_command_via_websocket(command):
 # ==========================================
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAgentAuthenticated])  # Agents call this endpoint
 @ratelimit_with_logging(key='header:HTTP_X_AGENT_TOKEN', rate='300/m', method='GET')
 def poll_commands(request):
     """
@@ -99,7 +100,7 @@ def poll_commands(request):
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAgentAuthenticated])  # Agents call this endpoint
 @ratelimit_with_logging(key='header:HTTP_X_AGENT_TOKEN', rate='50/m', method='POST')
 def report_command_result(request, command_id):
     """

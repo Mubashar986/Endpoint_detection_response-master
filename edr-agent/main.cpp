@@ -18,12 +18,18 @@
 #include "ServiceManager.hpp"
 #include "Logger.hpp"
 #include "ConfigReader.hpp"
+#include "EnrollmentClient.hpp"  // Agent registration
+#include "AgentId.hpp"           // For g_agentId initialization
 #include "version.h"
 
 #include <iostream>
 #include <string>
 #include <cstring>
 #include <fstream>
+#include <filesystem>  // For std::filesystem::current_path()
+
+// External references to globals from EdrAgent.cpp
+extern std::string g_agentId;
 
 // Forward declaration of agent main function
 extern int runAgent(bool serviceMode);
@@ -166,7 +172,7 @@ int main(int argc, char* argv[]) {
         }
         
         // Enable HTTP polling
-        if (arg == "--enable-polling") {
+        else if (arg == "--enable-polling") {
             ConfigReader config("config.json");
             nlohmann::json json = config.getJson();
             json["enable_http_polling"] = true;
@@ -178,7 +184,7 @@ int main(int argc, char* argv[]) {
         }
         
         // Disable HTTP polling
-        if (arg == "--disable-polling") {
+        else if (arg == "--disable-polling") {
             ConfigReader config("config.json");
             nlohmann::json json = config.getJson();
             json["enable_http_polling"] = false;
@@ -215,6 +221,45 @@ int main(int argc, char* argv[]) {
         std::cout << "  EDR Agent v" << AGENT_VERSION << "\n";
         std::cout << "  Console Mode (Press Ctrl+C to stop)\n";
         std::cout << "========================================\n\n";
+        
+        // ================================================================
+        // TEACHING: Enrollment Flow
+        // ================================================================
+        // Before the agent can send telemetry, it must be "enrolled".
+        // 
+        // First-time run:
+        //   1. Agent reads enrollment_token from config.json
+        //   2. Agent calls POST /api/v1/enroll/ with token
+        //   3. Server validates and returns identity_token
+        //   4. Agent saves identity_token to auth.secret
+        //   5. Agent continues with normal operation
+        //
+        // Subsequent runs:
+        //   - auth.secret already has identity_token
+        //   - needsEnrollment() returns false
+        //   - Skip straight to normal operation
+        // ================================================================
+        
+        // IMPORTANT: Initialize Agent ID BEFORE enrollment
+        // The enrollment request requires agent_id in the JSON payload
+        std::filesystem::path configDir = std::filesystem::current_path();
+        g_agentId = AgentId::getOrCreate(configDir);
+        LOG_INFO("Agent ID initialized: " + g_agentId);
+        
+        ConfigReader enrollConfig("config.json");
+        if (enrollConfig.needsEnrollment()) {
+            LOG_INFO("Agent not enrolled - starting enrollment process...");
+            if (!EnrollmentClient::enrollAgent(enrollConfig)) {
+                LOG_ERROR("Agent enrollment failed. Cannot continue.");
+                std::cerr << "ENROLLMENT FAILED!\n";
+                std::cerr << "Please check:\n";
+                std::cerr << "  1. config.json has 'enrollment_token' field\n";
+                std::cerr << "  2. Server is reachable\n";
+                std::cerr << "  3. Token is valid (not expired/used)\n";
+                return 1;
+            }
+            LOG_INFO("Enrollment successful - continuing startup");
+        }
         
         return runAgent(false);  // false = not service mode
     }

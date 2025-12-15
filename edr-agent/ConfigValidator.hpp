@@ -48,8 +48,8 @@ private:
             "config_version",
             "http_server",
             "http_port",
-            "api_path",
-            "auth_token"
+            "api_path"
+            // "auth_token" removed - now stored in auth.secret only
         };
         
         for (const auto& field : required) {
@@ -99,18 +99,9 @@ private:
                 "api_path must start with '/'");
         }
         
-        // auth_token: minimum 32 characters (standard token length)
-        std::string token = config.value("auth_token", "");
-        if (token.empty()) {
-            LOG_ERROR("auth_token is missing or empty");
-            return VoidResult::failure(AgentError::ConfigAuthMissing,
-                "auth_token is required");
-        }
-        if (token.length() < 32) {
-            LOG_ERROR("auth_token too short (min 32 chars), got: " + std::to_string(token.length()));
-            return VoidResult::failure(AgentError::ConfigInvalidValue,
-                "auth_token must be at least 32 characters");
-        }
+        // auth_token: REMOVED check here. 
+        // Logic moved to ConfigReader::getAuthToken() which checks auth.secret
+        // This allows config.json to exist without a token.
         
         return VoidResult::success();
     }

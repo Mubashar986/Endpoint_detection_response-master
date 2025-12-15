@@ -19,3 +19,4 @@ class TelemetryEvent(Document):
     
     def __str__(self):
         return f"Event {self.event_id} from {self.agent_id} at {self.timestamp}"
+

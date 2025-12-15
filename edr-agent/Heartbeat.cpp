@@ -244,7 +244,12 @@ HeartbeatResponse HeartbeatManager::sendHeartbeat(const HeartbeatData& data) {
         
         // Create HTTP client and add auth header
         HttpClient client;
-        client.addHeader("Authorization", "Token " + token);
+        // TEACHING: AgentToken vs Token
+        // =================================
+        // We use "AgentToken" prefix to distinguish machine auth from human auth.
+        // - AgentToken = Agent identity (from enrollment)
+        // - Token = DRF User token (dashboard users)
+        client.addHeader("Authorization", "AgentToken " + token);
         client.addHeader("Content-Type", "application/json");
         
         // Send heartbeat

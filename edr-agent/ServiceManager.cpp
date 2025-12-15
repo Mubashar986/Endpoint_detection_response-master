@@ -13,8 +13,12 @@
 
 #include "ServiceManager.hpp"
 #include "Logger.hpp"
+#include "AgentId.hpp"            // For g_agentId initialization in service mode
+#include "ConfigReader.hpp"       // For enrollment check
+#include "EnrollmentClient.hpp"   // For enrollment in service mode
 #include <iostream>
 #include <sstream>
+#include <filesystem>             // For std::filesystem::current_path()
 
 // Forward declaration of agent main function (defined in EdrAgent.cpp)
 extern int runAgent(bool serviceMode);
@@ -295,6 +299,28 @@ void WINAPI ServiceManager::ServiceMain(DWORD argc, LPWSTR* argv) {
     ReportStatus(SERVICE_START_PENDING, NO_ERROR, 3000);
     
     LOG_SVC_INFO("Initializing agent...");
+    
+    // Step 3.5: Initialize Agent ID (CRITICAL - must happen before enrollment)
+    // This is the same initialization that happens in console mode
+    extern std::string g_agentId;
+    std::filesystem::path configDir = std::filesystem::current_path();
+    g_agentId = AgentId::getOrCreate(configDir);
+    LOG_SVC_INFO("Agent ID initialized: " + g_agentId);
+    
+    // Step 3.6: Check if enrollment is needed
+    // First-time run requires enrollment to get identity_token
+    ConfigReader enrollConfig("config.json");
+    if (enrollConfig.needsEnrollment()) {
+        LOG_SVC_INFO("Agent not enrolled - starting enrollment process...");
+        ReportStatus(SERVICE_START_PENDING, NO_ERROR, 10000);  // Give enrollment 10s
+        
+        if (!EnrollmentClient::enrollAgent(enrollConfig)) {
+            LOG_SVC_ERROR("Agent enrollment failed. Cannot continue.");
+            ReportStatus(SERVICE_STOPPED, ERROR_SERVICE_SPECIFIC_ERROR, 0);
+            return;
+        }
+        LOG_SVC_INFO("Enrollment successful - continuing startup");
+    }
     
     // Step 4: Report running status
     ReportStatus(SERVICE_RUNNING, NO_ERROR, 0);

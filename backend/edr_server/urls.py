@@ -17,10 +17,17 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path , include
 from health.views import health_check
+from rest_framework.authtoken.views import obtain_auth_token  # DRF Token Auth
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/v1/health/', health_check, name='health'),
+    
+    # ========== API TOKEN AUTH ==========
+    # This endpoint allows users to exchange username/password for API token
+    # Usage: POST {"username": "...", "password": "..."} -> {"token": "..."}
+    path('api-token-auth/', obtain_auth_token, name='api_token_auth'),
+    
     # ========== INGESTION APP URLs ==========
     # This includes ALL ingestion URLs (telemetry, dashboard, etc.)
     path('', include('ingestion.urls')),
