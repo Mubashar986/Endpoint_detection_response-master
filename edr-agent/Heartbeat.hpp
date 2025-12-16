@@ -62,6 +62,7 @@ struct HeartbeatResponse {
     std::string updateUrl;
     std::string updateChecksum;  // SHA-256
     std::string message;
+    int configVersion; // Version of config on server
     
     // Parse from server JSON response
     static HeartbeatResponse fromJson(const nlohmann::json& json);

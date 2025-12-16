@@ -14,6 +14,7 @@
 #include "WebSocketClient.hpp"     // WebSocket for real-time commands
 #endif
 #include "ConfigReader.hpp"
+#include "ConfigManager.hpp"
 #include "ConfigValidator.hpp"     // Config validation
 #include "pugixml.hpp"
 
@@ -55,6 +56,11 @@ static bool g_serviceMode = false;
 WebSocketClient* g_webSocketClient = nullptr;  // WebSocket for real-time commands
 #endif
 HttpClient* g_httpClient = nullptr;                 // Active now
+
+// Dynamic Configuration Globals (Managed by ConfigManager)
+int g_batchSize = 100;
+int g_commandPollInterval = 5;
+bool g_httpPollingEnabled = true;
 
 // ============================================
 // Shutdown Request (called by ServiceManager)
@@ -145,6 +151,11 @@ int runAgent(bool serviceMode) {
         g_agentId = AgentId::getOrCreate(configDir);
         LOG_INFO("Agent ID: " + g_agentId);
         
+        // Step 1.55: Initialize ConfigManager (Dynamic Configuration)
+        LOG_INFO("[1.55/4] Initializing Configuration Manager...");
+        ConfigManager::init();
+        LOG_INFO("ConfigManager initialized. Version: " + std::to_string(ConfigManager::getCurrentVersion()));
+        
         // Step 1.6: Configure Event Spillover
         LOG_INFO("[1.6/4] Configuring Event Spillover...");
         SpilloverConfig spillConfig;
@@ -175,12 +186,13 @@ int runAgent(bool serviceMode) {
         LOG_INFO("Target: " + std::string(useHttps ? "https://" : "http://") + httpServer + ":" + std::to_string(httpPort) + apiPath);
         
         // Step 2.5: Start Command Polling (unless disabled for WebSocket-only mode)
-        bool disablePolling = configReader.isHttpPollingDisabled();
-        if (!disablePolling) {
+        // Step 2.5: Start Command Polling (unless disabled for WebSocket-only mode)
+        // Use global dynamic flag
+        if (g_httpPollingEnabled) {
             LOG_INFO("[2.5/4] Starting Command Polling Service...");
             CommandProcessor::startCommandPolling();
         } else {
-            LOG_INFO("[2.5/4] HTTP Command Polling DISABLED (WebSocket-only mode)");
+            LOG_INFO("[2.5/4] HTTP Command Polling DISABLED (WebSocket-only mode or Config disabled)");
             LOG_WARN("Commands will only be received via WebSocket");
         }
 
@@ -285,9 +297,10 @@ int runAgent(bool serviceMode) {
             }
         });
         
-        // Start heartbeat with 30-second interval
-        HeartbeatManager::instance().start(30);
-        LOG_INFO("Heartbeat started (30s interval)");
+        // Start heartbeat with dynamic interval from ConfigManager
+        int heartbeatInterval = ConfigManager::getHeartbeatInterval();
+        HeartbeatManager::instance().start(heartbeatInterval);
+        LOG_INFO("Heartbeat started (" + std::to_string(heartbeatInterval) + "s interval)");
         
         if (!g_serviceMode) {
             LOG_INFO("Press any key or Ctrl+C to stop...");

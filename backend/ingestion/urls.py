@@ -1,11 +1,16 @@
 
-from django.urls import path
+from django.urls import path, include
 from . import views, dashboard_views, admin_views
 from . import command_views
 from . import heartbeat_views
 from .api.enroll_views import EnrollAgentView
 from .api.token_views import TokenListCreateView, TokenRevokeView
-from .api.config_views import AgentConfigView, ConfigListCreateView, ConfigAssignView
+from .api.config_views import agent_config_pull, ConfigViewSet
+from rest_framework.routers import DefaultRouter
+
+# Create a router and register our viewsets with it.
+router = DefaultRouter()
+router.register(r'api/v1/configs', ConfigViewSet, basename='agentconfig')
 
 app_name = 'ingestion'
 
@@ -40,9 +45,11 @@ urlpatterns = [
     path('api/v1/tokens/<str:token_id>/', TokenRevokeView.as_view(), name='token_revoke'),
     
     # Config Management - Agent config download uses AgentToken
-    path('api/v1/config/', AgentConfigView.as_view(), name='agent_config'),
-    path('api/v1/configs/', ConfigListCreateView.as_view(), name='config_list'),
-    path('api/v1/configs/<str:config_id>/assign/', ConfigAssignView.as_view(), name='config_assign'),
+    # Config Management - Agent config download uses AgentToken
+    path('api/v1/config/', agent_config_pull, name='agent_config'),
+    
+    # Include router URLs for ConfigViewSet (CRUD)
+    path('', include(router.urls)),
     
     # ========== RESPONSE ACTION APIs (New) ==========
     # Agent Communication

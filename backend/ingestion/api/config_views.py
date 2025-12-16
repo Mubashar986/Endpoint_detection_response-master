@@ -1,177 +1,166 @@
-"""
-Agent Configuration API Views.
-
-Endpoints for agents to download their configuration and for admins to manage configs.
-"""
-from rest_framework.views import APIView
+from rest_framework import viewsets, status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
-from datetime import datetime
+from ..models_mongo import AgentConfig, Agent
+from ..auth import IsAgentAuthenticated
+from datetime import datetime, timezone
 
-from ..models_mongo import Agent, AgentConfig
-from ..auth import AgentTokenAuthentication, IsAgentAuthenticated
+# ==========================================
+# AGENT-FACING ENDPOINTS
+# ==========================================
 
-
-class AgentConfigView(APIView):
+@api_view(['GET'])
+@permission_classes([IsAgentAuthenticated])
+def agent_config_pull(request):
     """
-    GET /api/v1/config/ - Agent downloads its assigned configuration
-    
-    Uses AgentToken authentication - agent gets its assigned config.
+    Allow an agent to download its assigned configuration.
+    Endpoint: GET /api/v1/config/
     """
-    permission_classes = [IsAgentAuthenticated]
-    
-    def get(self, request):
-        """Agent downloads its configuration."""
-        agent = request.auth  # Set by AgentTokenAuthentication
+    try:
+        agent = request.auth  # This is the Agent object from IsAgentAuthenticated
         
-        if not agent:
-            return Response(
-                {'error': 'Agent authentication required'},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
+        # 1. Determine which config ID to use
+        # If agent has a specific config assigned, use it. Otherwise 'default'.
+        config_id = agent.config_id if agent.config_id else "default"
         
-        # Get agent's assigned config
-        if agent.config_id:
-            try:
-                config = AgentConfig.objects.get(config_id=agent.config_id)
-                config_data = config.config_json
-                config_version = config.version
-                config_name = config.name
-            except AgentConfig.DoesNotExist:
-                # Fallback to default config
-                config_data = self._get_default_config()
-                config_version = 1
-                config_name = "Default (fallback)"
-        else:
-            # No config assigned - use default
-            config_data = self._get_default_config()
-            config_version = 1
-            config_name = "Default"
-        
-        # Update agent's config status
-        agent.config_status = 'SYNCED'
-        agent.config_version = config_version
-        agent.save()
-        
-        return Response({
-            'config_name': config_name,
-            'config_version': config_version,
-            'config': config_data,
-            'updated_at': datetime.utcnow().isoformat()
-        })
-    
-    def _get_default_config(self):
-        """Return default configuration for agents."""
-        return {
-            "modules": {
-                "file_monitor": {"enabled": True},
-                "process_monitor": {"enabled": True},
-                "network_monitor": {"enabled": False}
-            },
-            "telemetry": {
-                "batch_size": 100,
-                "heartbeat_interval": 30
-            },
-            "exclusions": {
-                "paths": [],
-                "processes": []
-            }
-        }
-
-
-class ConfigListCreateView(APIView):
-    """
-    GET /api/v1/configs/ - List all configurations (Admin)
-    POST /api/v1/configs/ - Create new configuration (Admin)
-    """
-    permission_classes = [IsAuthenticated, IsAdminUser]
-    
-    def get(self, request):
-        """List all agent configurations."""
-        configs = AgentConfig.objects.order_by('-created_at')
-        
-        config_list = []
-        for config in configs:
-            config_list.append({
-                'id': config.config_id,
-                'name': config.name,
-                'version': config.version,
-                'config_json': config.config_json,
-                'created_by': config.created_by,
-                'created_at': config.created_at.isoformat() if config.created_at else None,
-            })
-        
-        return Response({
-            'count': len(config_list),
-            'configs': config_list
-        })
-    
-    def post(self, request):
-        """Create new agent configuration."""
-        name = request.data.get('name', 'New Policy')
-        config_json = request.data.get('config_json', {})
-        
-        # Get next version for this name
-        existing = AgentConfig.objects(name=name).order_by('-version').first()
-        next_version = (existing.version + 1) if existing else 1
-        
-        config = AgentConfig(
-            name=name,
-            version=next_version,
-            config_json=config_json,
-            created_by=request.user.username
-        )
-        config.save()
-        
-        return Response({
-            'success': True,
-            'config_id': config.config_id,
-            'name': config.name,
-            'version': config.version
-        }, status=status.HTTP_201_CREATED)
-
-
-class ConfigAssignView(APIView):
-    """
-    POST /api/v1/configs/<config_id>/assign/ - Assign config to agents (Admin)
-    """
-    permission_classes = [IsAuthenticated, IsAdminUser]
-    
-    def post(self, request, config_id):
-        """Assign a configuration to one or more agents."""
-        agent_ids = request.data.get('agent_ids', [])
-        
-        if not agent_ids:
-            return Response(
-                {'error': 'agent_ids list is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Verify config exists
         try:
             config = AgentConfig.objects.get(config_id=config_id)
         except AgentConfig.DoesNotExist:
-            return Response(
-                {'error': 'Configuration not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        
-        # Update agents
-        updated_count = 0
-        for agent_id in agent_ids:
+            # Fallback: validation should ensure 'default' always exists, but safety first
             try:
-                agent = Agent.objects.get(agent_id=agent_id)
-                agent.config_id = config_id
-                agent.config_status = 'PENDING'
-                agent.save()
-                updated_count += 1
-            except Agent.DoesNotExist:
-                continue
-        
+                config = AgentConfig.objects.get(config_id="default")
+            except AgentConfig.DoesNotExist:
+                # Emergency fallback if even default is missing
+                # Try to find ANY config marked as default
+                config = AgentConfig.objects.filter(is_default=True).first()
+                if not config:
+                     return Response({
+                        "error": "No configuration available",
+                        "code": "config_missing"
+                    }, status=status.HTTP_404_NOT_FOUND)
+
+        # 2. Return the configuration payload
+        # We strip internal metadata and return clean JSON
         return Response({
-            'success': True,
-            'updated_agents': updated_count,
-            'config_name': config.name,
-            'config_version': config.version
+            "config_id": config.config_id,
+            "version": config.version,
+            "config": config.config_json
         })
+        
+    except Exception as e:
+        return Response({
+            "error": str(e),
+            "code": "internal_error"
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ==========================================
+# ADMIN-FACING ENDPOINTS
+# ==========================================
+
+class ConfigViewSet(viewsets.ViewSet):
+    """
+    Admin API for managing agent configuration policies.
+    Endpoint: /api/v1/configs/
+    """
+    permission_classes = [IsAuthenticated]  # Only logged-in users (admins/analysts)
+
+    def list(self, request):
+        """List all available configurations."""
+        configs = AgentConfig.objects.all().order_by('-is_default', 'name')
+        data = [{
+            "config_id": c.config_id,
+            "name": c.name,
+            "version": c.version,
+            "is_default": c.is_default
+        } for c in configs]
+        return Response(data)
+
+    def retrieve(self, request, pk=None):
+        """Get a single configuration details."""
+        try:
+            config = AgentConfig.objects.get(config_id=pk)
+            return Response({
+                "config_id": config.config_id,
+                "name": config.name,
+                "version": config.version,
+                "is_default": config.is_default,
+                "config_json": config.config_json,
+                "created_by": config.created_by,
+                "created_at": config.created_at
+            })
+        except AgentConfig.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+    def create(self, request):
+        """Create a new configuration policy."""
+        try:
+            # Extract fields
+            name = request.data.get('name')
+            config_json = request.data.get('config_json', {})
+            is_default = request.data.get('is_default', False)
+            config_id = request.data.get('config_id') # Allow manual ID if needed
+            
+            # Create object
+            config = AgentConfig(
+                name=name,
+                config_json=config_json,
+                is_default=is_default,
+                created_by=request.user.username
+            )
+            if config_id:
+                config.config_id = config_id
+                
+            config.save()
+            
+            return Response({
+                "message": "Configuration created successfully",
+                "config_id": config.config_id
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    def update(self, request, pk=None):
+        """Update an existing policy (Increments version)."""
+        try:
+            config = AgentConfig.objects.get(config_id=pk)
+            
+            # Update fields if present
+            if 'name' in request.data:
+                config.name = request.data['name']
+            
+            if 'config_json' in request.data:
+                config.config_json = request.data['config_json']
+                # Increment version on config change
+                config.version += 1
+                config.updated_at = datetime.now(timezone.utc)
+            
+            if 'is_default' in request.data:
+                config.is_default = request.data['is_default']
+            
+            config.save()
+            
+            return Response({
+                "message": "Configuration updated",
+                "version": config.version
+            })
+            
+        except AgentConfig.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    def destroy(self, request, pk=None):
+        """Delete a configuration (Prevent if default)."""
+        try:
+            config = AgentConfig.objects.get(config_id=pk)
+            if config.is_default:
+                return Response({"error": "Cannot delete default configuration"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            config.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+            
+        except AgentConfig.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)

@@ -6,6 +6,7 @@
 #include "Logger.hpp"
 #include "HttpClient.hpp"
 #include "ConfigReader.hpp"
+#include "ConfigManager.hpp"
 #include <Windows.h>
 #include <Psapi.h>
 #include <chrono>
@@ -59,6 +60,7 @@ HeartbeatResponse HeartbeatResponse::fromJson(const nlohmann::json& json) {
     response.updateUrl = json.value("update_url", "");
     response.updateChecksum = json.value("update_checksum", "");
     response.message = json.value("message", "");
+    response.configVersion = json.value("config_version", 0);
     return response;
 }
 
@@ -263,6 +265,11 @@ HeartbeatResponse HeartbeatManager::sendHeartbeat(const HeartbeatData& data) {
                 response = HeartbeatResponse::fromJson(responseJson);
                 response.success = true;  // Mark as success if we got valid JSON
                 LOG_DEBUG("[Heartbeat] Sent successfully");
+
+                // Check for config updates
+                if (ConfigManager::checkAndUpdate(response.configVersion)) {
+                    LOG_INFO("[Heartbeat] Config updated. New version: " + std::to_string(response.configVersion));
+                }
             } catch (const std::exception& e) {
                 LOG_WARN("[Heartbeat] Failed to parse response: " + std::string(e.what()));
             }

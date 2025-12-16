@@ -61,22 +61,43 @@ class AgentConfig(Document):
     config_id = StringField(required=True, unique=True, default=lambda: str(uuid.uuid4()))
     name = StringField(default="Default Policy")
     version = IntField(default=1)
+    is_default = BooleanField(default=False)  # Mark as default policy
     
     # The actual JSON payload sent to agents
     config_json = DictField(default=lambda: {
-        "modules": {
-            "file_monitor": {"enabled": True},
-            "process_monitor": {"enabled": True},
-            "network_monitor": {"enabled": False}
-        },
-        "telemetry": {
+        "_config_version": 1,
+        "communication": {
+            "heartbeat_interval_seconds": 30,
             "batch_size": 100,
-            "heartbeat_interval": 30
+            "command_poll_interval_seconds": 5,
+            "enable_http_polling": True,
+            "compression_level": 3
+        },
+        "modules": {
+            "file_monitor": {"enabled": True, "paths": ["C:\\Windows\\System32", "C:\\Program Files"]},
+            "process_monitor": {"enabled": True},
+            "network_monitor": {"enabled": True},
+            "registry_monitor": {"enabled": False}
+        },
+        "filters": {
+            "excluded_event_ids": [],
+            "excluded_processes": ["chrome.exe", "firefox.exe"],
+            "sampling_rate_percent": 100
+        },
+        "performance": {
+            "buffer_max_size": 1000,
+            "max_cpu_percent": 10
+        },
+        "security": {
+            "response_actions": {"enabled": True},
+            "auto_update": {"enabled": True},
+            "agent_mode": "active"
         }
     })
     
     created_by = StringField()  # Username
     created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    updated_at = DateTimeField()  # Track last update time
     
     meta = {
         'collection': 'agent_configs',

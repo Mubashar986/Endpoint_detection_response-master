@@ -78,6 +78,7 @@ set(AGENT_SOURCES
     Heartbeat.cpp
     Updater.cpp
     EnrollmentClient.cpp  # NEW: Agent registration with server
+    ConfigManager.cpp     # NEW: Agent configuration management
     EventSpillover.cpp
 )
 

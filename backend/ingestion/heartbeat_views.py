@@ -119,6 +119,20 @@ def heartbeat_endpoint(request):
             logger.info(f"Agent {agent_id[:8]}... needs update: {current_version} -> {LATEST_AGENT_VERSION}")
         
         logger.debug(f"Heartbeat from {agent_id[:8]}... (v{current_version})")
+        
+        # Add config version for dynamic configuration updates
+        try:
+            from .models_mongo import AgentConfig
+            config_id = agent.config_id if agent.config_id else "default"
+            config = AgentConfig.objects.filter(config_id=config_id).first()
+            if config:
+                response_data['config_version'] = config.version
+            else:
+                response_data['config_version'] = 0
+        except Exception as config_err:
+            logger.warning(f"Could not get config version: {config_err}")
+            response_data['config_version'] = 0
+        
         return Response(response_data, status=status.HTTP_200_OK)
         
     except Exception as e:
