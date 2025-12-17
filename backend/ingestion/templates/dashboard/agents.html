@@ -80,6 +80,10 @@
                                 class="btn btn-sm btn-outline-primary">
                                 <i class="fas fa-list"></i> Events
                             </a>
+                            <a href="{% url 'ingestion:agent_config_page' agent.agent_id %}"
+                               class="btn btn-sm btn-outline-secondary ms-1">
+                                <i class="fas fa-cog"></i> Config
+                            </a>
                         </td>
                     </tr>
                     {% empty %}

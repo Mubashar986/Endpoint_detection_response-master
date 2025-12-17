@@ -6,6 +6,7 @@ from . import heartbeat_views
 from .api.enroll_views import EnrollAgentView
 from .api.token_views import TokenListCreateView, TokenRevokeView
 from .api.config_views import agent_config_pull, ConfigViewSet
+from .api import agent_views
 from rest_framework.routers import DefaultRouter
 
 # Create a router and register our viewsets with it.
@@ -39,6 +40,11 @@ urlpatterns = [
     # ========== AGENT MANAGEMENT APIs (NEW - Phase 2) ==========
     # Enrollment - Agent registration (no auth required, uses enrollment token)
     path('api/v1/enroll/', EnrollAgentView.as_view(), name='agent_enroll'),
+    
+    # Detailed Agent Management (Config assignment, Token ops)
+    path('api/v1/agents/<str:agent_id>/', agent_views.agent_detail, name='agent_detail'),
+    path('api/v1/agents/<str:agent_id>/revoke-token/', agent_views.revoke_agent_token, name='agent_revoke_token'),
+    path('api/v1/agents/<str:agent_id>/rotate-token/', agent_views.rotate_agent_token, name='agent_rotate_token'),
     
     # Token Management - Admin only
     path('api/v1/tokens/', TokenListCreateView.as_view(), name='token_list'),
@@ -91,6 +97,7 @@ urlpatterns = [
     
     # ========== AGENTS MANAGEMENT ==========
     path('dashboard/agents/', dashboard_views.agents_list_view, name='agents_list'),
+    path('dashboard/agents/<str:agent_id>/config/', dashboard_views.agent_config_view, name='agent_config_page'),
     path('api/v1/dashboard/agents/', dashboard_views.agents_api, name='agents_api'),
 ]
 

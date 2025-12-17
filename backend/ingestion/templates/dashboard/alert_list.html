@@ -1,4 +1,4 @@
-{% extends "base.html" %} 
+{% extends "base.html" %}
 {% block content %}
 <div class="container-fluid">
   <h2>All Alerts</h2>
@@ -22,9 +22,7 @@
           <tr>
             <td>{{ alert.alert_id }}</td>
             <td>
-              <span class="badge badge-{{ alert.severity|lower }}"
-                >{{ alert.severity }}</span
-              >
+              <span class="badge badge-{{ alert.severity|lower }}">{{ alert.severity }}</span>
             </td>
             <td>{{ alert.rule_name }}</td>
             <td>{{ alert.endpoint_id }}</td>
@@ -33,11 +31,7 @@
             </td>
             <td>{{ alert.first_detected|timesince }} ago</td>
             <td>
-              <a
-                href="/dashboard/alerts/{{ alert.alert_id }}/"
-                class="btn btn-sm btn-info"
-                >View</a
-              >
+              <a href="/dashboard/alerts/{{ alert.alert_id }}/" class="btn btn-sm btn-info">View</a>
             </td>
           </tr>
           {% endfor %}

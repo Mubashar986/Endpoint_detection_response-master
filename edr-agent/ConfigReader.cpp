@@ -15,7 +15,29 @@ std::string ConfigReader::getLastErrorMessage() { return g_lastConfigErrorMsg; }
 ConfigReader::ConfigReader(
     const std::filesystem::path& configFilePath
 ) : configFilePath(configFilePath) {
+    // ============================================
+    // BOOTSTRAP LOGIC: "Bootstrap + Policy" Model
+    // ============================================
+    // 1. Load Bootstrap (config.json) - Always the base
+    LOG_INFO("Loading bootstrap config: " + configFilePath.string());
     jsonObject = parseJsonFile(configFilePath);
+
+    // 2. Load Policy (agent_policy.json) - If exists
+    std::filesystem::path policyPath = configFilePath.parent_path() / "agent_policy.json";
+    
+    if (std::filesystem::exists(policyPath)) {
+        LOG_INFO("Loading policy config: " + policyPath.string());
+        try {
+            nlohmann::json policyObject = parseJsonFile(policyPath);
+            mergeJson(jsonObject, policyObject);
+            LOG_INFO("Successfully merged policy into config");
+        } catch (const std::exception& e) {
+            LOG_ERROR("Failed to load/merge policy: " + std::string(e.what()));
+            // Fallback: Continue with just bootstrap (Safe Mode)
+        }
+    } else {
+        LOG_INFO("No policy file found (" + policyPath.string() + "). Using bootstrap defaults.");
+    }
 }
 
 /*
@@ -332,5 +354,17 @@ bool ConfigReader::needsEnrollment()
     }
     
     return true;  // No valid token = needs enrollment
+}
+
+void ConfigReader::mergeJson(nlohmann::json& target, const nlohmann::json& source) {
+    for (auto it = source.begin(); it != source.end(); ++it) {
+        // If both are objects, recurse
+        if (it.value().is_object() && target[it.key()].is_object()) {
+            mergeJson(target[it.key()], it.value());
+        } else {
+            // Otherwise subscribe (overwrite)
+            target[it.key()] = it.value();
+        }
+    }
 }
 

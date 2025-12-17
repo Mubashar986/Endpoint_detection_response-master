@@ -1,0 +1,582 @@
+﻿{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Configuration | {{ agent.hostname }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Modern Card Gradients */
+    .gradient-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 20px 20px 0 0;
+    }
+
+    .info-card {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        border-radius: 15px;
+        padding: 25px;
+        border: none;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        margin-bottom: 20px;
+    }
+
+    .info-card h5 {
+        color: #667eea;
+        margin-bottom: 15px;
+        font-weight: 600;
+    }
+
+    /* Action Button Styles */
+    .action-btn-modern {
+        border-radius: 30px;
+        padding: 15px 30px;
+        font-weight: 600;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        transition: all 0.3s ease;
+        border: none;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .action-btn-modern:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    }
+
+    .btn-primary-modern {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+    }
+
+    .btn-warning-modern {
+        background: linear-gradient(135deg, #ffd93d, #ffb400);
+        color: #2d3436;
+    }
+
+    .btn-danger-modern {
+        background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+        color: white;
+    }
+
+    /* Custom Modal Styles */
+    .custom-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(5px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        animation: fadeIn 0.3s ease;
+    }
+
+    .custom-modal-overlay.show {
+        display: flex;
+    }
+
+    .custom-modal {
+        background: white;
+        border-radius: 20px;
+        padding: 30px;
+        max-width: 500px;
+        width: 90%;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        animation: slideUp 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    @keyframes slideUp {
+        from {
+            transform: translateY(50px);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+
+    .modal-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 20px;
+        font-size: 28px;
+    }
+
+    .modal-icon.success {
+        background: linear-gradient(135deg, #51cf66, #37b24d);
+        color: white;
+    }
+
+    .modal-icon.warning {
+        background: linear-gradient(135deg, #ffd93d, #ffb400);
+        color: white;
+    }
+
+    .modal-icon.danger {
+        background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+        color: white;
+    }
+
+    /* Stats Card */
+    .stat-card {
+        background: white;
+        border-radius: 15px;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .stat-card .icon {
+        font-size: 32px;
+        margin-bottom: 10px;
+    }
+
+    .stat-card .value {
+        font-size: 28px;
+        font-weight: 700;
+        margin-bottom: 5px;
+    }
+
+    .stat-card .label {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #888;
+    }
+
+    /* Status Badge */
+    .status-badge-lg {
+        font-size: 16px;
+        padding: 10px 25px;
+        border-radius: 30px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-0">
+                <i class="fas fa-sliders-h text-primary"></i>
+                {{ agent.hostname }}
+            </h2>
+            <small class="text-muted">Agent Configuration & Management</small>
+        </div>
+        <a href="{% url 'ingestion:agents_list' %}" class="btn btn-outline-secondary"
+            style="border-radius: 30px; padding: 10px 25px;">
+            <i class="fas fa-arrow-left"></i> Back to Agents
+        </a>
+    </div>
+
+    <!-- Status Toast -->
+    <div id="statusToast" style="position: fixed; top: 20px; right: 20px; z-index: 10000; display: none;">
+        <div class="alert" style="border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); min-width: 300px;"
+            id="toastAlert">
+            <i class="fas fa-check-circle"></i> <span id="toastMessage">Success!</span>
+        </div>
+    </div>
+
+    <!-- Agent Overview Card -->
+    <div class="card border-0 shadow-lg mb-4" style="border-radius: 20px; overflow: hidden;">
+        <div class="gradient-header text-white" style="padding: 30px;">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h3 class="mb-2">
+                        <i class="fas fa-desktop"></i>
+                        {{ agent.hostname }}
+                    </h3>
+                    <p class="mb-0" style="opacity: 0.9;">
+                        Agent ID: <code
+                            style="background: rgba(255,255,255,0.2); padding: 5px 10px; border-radius: 5px;">{{ agent.agent_id }}</code>
+                    </p>
+                </div>
+                <div class="col-md-4 text-md-end">
+                    <span
+                        class="badge bg-{% if agent.is_online %}success{% else %}secondary{% endif %} status-badge-lg">
+                        <i class="fas fa-circle"></i> {{ agent.is_online|yesno:"Online,Offline" }}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- LEFT COLUMN: Stats & Health -->
+        <div class="col-md-4">
+            <!-- Health Stats -->
+            <div class="info-card">
+                <h5><i class="fas fa-heartbeat text-danger me-2"></i> Agent Health</h5>
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <label class="small text-muted text-uppercase fw-bold">CPU Usage</label>
+                        <div class="d-flex align-items-center mt-1">
+                            <div class="progress flex-grow-1" style="height: 10px; border-radius: 5px;">
+                                <div class="progress-bar"
+                                    style="width: {{ agent.cpu_percent }}%; background: linear-gradient(90deg, #11998e, #38ef7d);">
+                                </div>
+                            </div>
+                            <span class="ms-2 fw-bold">{{ agent.cpu_percent }}%</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-6">
+                        <div class="stat-card">
+                            <div class="icon text-primary"><i class="fas fa-memory"></i></div>
+                            <div class="value text-primary">{{ agent.memory_mb }}</div>
+                            <div class="label">Memory MB</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="stat-card">
+                            <div class="icon text-success"><i class="fas fa-paper-plane"></i></div>
+                            <div class="value text-success">{{ agent.events_sent }}</div>
+                            <div class="label">Events Sent</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <small class="text-muted">
+                        <i class="far fa-clock me-1"></i> Last Heartbeat: <strong>{{ agent.last_heartbeat|timesince }}
+                            ago</strong>
+                    </small>
+                </div>
+            </div>
+
+            <!-- Token Management -->
+            <div class="info-card">
+                <h5><i class="fas fa-key text-warning me-2"></i> Authentication</h5>
+                <div class="mb-3">
+                    <label class="small text-muted text-uppercase fw-bold">Identity Token</label>
+                    <div class="input-group mt-1">
+                        <span class="input-group-text bg-light"><i class="fas fa-fingerprint"></i></span>
+                        <input type="text" class="form-control bg-white" value="{{ token_snippet }}" readonly>
+                    </div>
+                </div>
+                <div class="d-grid gap-2">
+                    <button class="action-btn-modern btn-warning-modern" onclick="showRotateModal()">
+                        <i class="fas fa-sync me-1"></i> Rotate Token
+                    </button>
+                    <button class="action-btn-modern btn-danger-modern" onclick="showRevokeModal()">
+                        <i class="fas fa-ban me-1"></i> Revoke Access
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN: Configuration -->
+        <div class="col-md-8">
+            <!-- Policy Configuration -->
+            <div class="card border-0 shadow-lg mb-4" style="border-radius: 20px; overflow: hidden;">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center py-3 border-0">
+                    <h5 class="mb-0" style="color: #667eea;"><i class="fas fa-cog me-2"></i> Policy Configuration</h5>
+                    <span class="badge status-badge-lg"
+                        style="background: linear-gradient(135deg, #ffd93d, #ffb400); color: #2d3436;">
+                        {{ agent.config_status|default:"UNKNOWN" }}
+                    </span>
+                </div>
+                <div class="card-body p-4">
+                    <div class="mb-4">
+                        <label class="form-label fw-bold h6">Assigned Security Policy</label>
+                        <p class="text-muted small mb-3">
+                            <i class="fas fa-info-circle"></i> Policy changes are applied automatically during the next
+                            heartbeat (every 30 seconds).
+                        </p>
+
+                        <div class="input-group input-group-lg mb-3">
+                            <span class="input-group-text"
+                                style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none;">
+                                <i class="fas fa-shield-alt"></i>
+                            </span>
+                            <select id="configSelect" class="form-select" style="border: 2px solid #667eea;">
+                                <option value="">-- Select Policy --</option>
+                                {% for config in configs %}
+                                <option value="{{ config.config_id }}" {% if config.config_id == agent.config_id %}selected{% endif %}>
+                                    {{ config.name }} (v{{ config.version }}) {% if config.is_default %}[Default]{%endif %}
+                                </option>
+
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="text-end">
+                        <button onclick="saveAssignment()" class="action-btn-modern btn-primary-modern" id="saveBtn">
+                            <i class="fas fa-save me-2"></i> Apply Policy
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Policy Preview -->
+            <div class="info-card text-center py-5">
+                <div class="mb-3">
+                    <span class="display-4" style="color: #667eea;"><i class="fas fa-layer-group"></i></span>
+                </div>
+                <h5 style="color: #667eea;">Policy Details Preview</h5>
+                <p class="text-muted mb-3">Select a policy to view its enabled modules and settings.</p>
+                <small class="text-muted">
+                    <i class="fas fa-lightbulb"></i> Navigate to the Policy Editor to create or modify policies.
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Rotate Token Modal -->
+<div class="custom-modal-overlay" id="rotateModal">
+    <div class="custom-modal">
+        <div class="modal-icon warning">
+            <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <h4 class="text-center mb-3">Rotate Token?</h4>
+        <p class="text-center text-muted mb-4">
+            WARNING: This will disconnect the agent immediately. You must manually update the <code>auth.secret</code>
+            file with the new token.
+        </p>
+        <div class="d-flex gap-2 justify-content-center">
+            <button class="btn btn-secondary" style="border-radius: 25px; padding: 10px 30px;"
+                onclick="closeRotateModal()">Cancel</button>
+            <button class="btn btn-warning" style="border-radius: 25px; padding: 10px 30px;"
+                onclick="confirmRotate()">Confirm Rotate</button>
+        </div>
+    </div>
+</div>
+
+<!-- New Token Display Modal -->
+<div class="custom-modal-overlay" id="newTokenModal">
+    <div class="custom-modal">
+        <div class="modal-icon success">
+            <i class="fas fa-check-circle"></i>
+        </div>
+        <h4 class="text-center mb-3">Token Rotated!</h4>
+        <p class="text-center text-muted mb-3">Copy this token now. It will not be shown again:</p>
+        <div class="alert alert-warning mb-4">
+            <code id="newTokenValue" style="word-break: break-all; display: block;">TOKEN_HERE</code>
+        </div>
+        <div class="text-center">
+            <button class="btn btn-success" style="border-radius: 25px; padding: 10px 30px;"
+                onclick="location.reload()">I Copied It</button>
+        </div>
+    </div>
+</div>
+
+<!-- Revoke Token Modal -->
+<div class="custom-modal-overlay" id="revokeModal">
+    <div class="custom-modal">
+        <div class="modal-icon danger">
+            <i class="fas fa-ban"></i>
+        </div>
+        <h4 class="text-center mb-3">Revoke Access?</h4>
+        <p class="text-center text-danger mb-2"><strong>DANGER:</strong> This is permanent.</p>
+        <p class="text-center text-muted mb-4">
+            Revoking will block this agent from communicating. You must re-enroll to restore access.
+        </p>
+        <div class="d-flex gap-2 justify-content-center">
+            <button class="btn btn-secondary" style="border-radius: 25px; padding: 10px 30px;"
+                onclick="closeRevokeModal()">Cancel</button>
+            <button class="btn btn-danger" style="border-radius: 25px; padding: 10px 30px;"
+                onclick="confirmRevoke()">Yes, Revoke</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const AGENT_ID = "{{ agent.agent_id }}";
+    const API_BASE = "/api/v1/agents/" + AGENT_ID + "/";
+
+    function showToast(message, type = 'success') {
+        const toast = document.getElementById('statusToast');
+        const alert = document.getElementById('toastAlert');
+        const messageSpan = document.getElementById('toastMessage');
+
+        messageSpan.textContent = message;
+
+        if (type === 'success') {
+            alert.style.background = 'linear-gradient(135deg, #11998e, #38ef7d)';
+            alert.style.color = 'white';
+        } else if (type === 'error') {
+            alert.style.background = 'linear-gradient(135deg, #ff6b6b, #ee5a6f)';
+            alert.style.color = 'white';
+        } else if (type === 'warning') {
+            alert.style.background = 'linear-gradient(135deg, #ffd93d, #ffb400)';
+            alert.style.color = '#2d3436';
+        }
+
+        toast.style.display = 'block';
+        setTimeout(() => toast.style.display = 'none', 4000);
+    }
+
+    async function saveAssignment() {
+        const configId = document.getElementById('configSelect').value;
+        const btn = document.getElementById('saveBtn');
+
+        if (!configId) {
+            showToast("Please select a policy", "warning");
+            return;
+        }
+
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+        try {
+            const res = await fetch(API_BASE, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                credentials: 'include',
+                body: JSON.stringify({ config_id: configId })
+            });
+
+            console.log('Response status:', res.status);
+
+            let data;
+            try {
+                data = await res.json();
+                console.log('Response data:', data);
+            } catch (jsonError) {
+                console.error('JSON parse error:', jsonError);
+                showToast("Server returned invalid response", "error");
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                return;
+            }
+
+            if (res.ok) {
+                showToast("? Policy assigned! Updating on next heartbeat...", "success");
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                const errorMsg = data.error || data.message || data.detail || JSON.stringify(data);
+                showToast("Error: " + errorMsg, "error");
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        } catch (e) {
+            console.error('Network error:', e);
+            showToast("Network error: " + e.message, "error");
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+
+    function showRotateModal() {
+        document.getElementById('rotateModal').classList.add('show');
+    }
+
+    function closeRotateModal() {
+        document.getElementById('rotateModal').classList.remove('show');
+    }
+
+    async function confirmRotate() {
+        closeRotateModal();
+
+        try {
+            const res = await fetch(API_BASE + "rotate-token/", {
+                method: 'POST',
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                credentials: 'include'
+            });
+
+            console.log('Rotate response status:', res.status);
+
+            let data;
+            try {
+                data = await res.json();
+                console.log('Rotate response data:', data);
+            } catch (jsonError) {
+                console.error('JSON parse error:', jsonError);
+                showToast("Server returned invalid response", "error");
+                return;
+            }
+
+            if (res.ok) {
+                document.getElementById('newTokenValue').textContent = data.new_token;
+                document.getElementById('newTokenModal').classList.add('show');
+            } else {
+                const errorMsg = data.error || data.message || data.detail || JSON.stringify(data);
+                showToast("Error: " + errorMsg, "error");
+            }
+        } catch (e) {
+            console.error('Network error:', e);
+            showToast("Network error: " + e.message, "error");
+        }
+    }
+
+    function showRevokeModal() {
+        document.getElementById('revokeModal').classList.add('show');
+    }
+
+    function closeRevokeModal() {
+        document.getElementById('revokeModal').classList.remove('show');
+    }
+
+    async function confirmRevoke() {
+        closeRevokeModal();
+
+        try {
+            const res = await fetch(API_BASE + "revoke-token/", {
+                method: 'POST',
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                credentials: 'include'
+            });
+
+            console.log('Revoke response status:', res.status);
+
+            let data;
+            try {
+                data = await res.json();
+                console.log('Revoke response data:', data);
+            } catch (jsonError) {
+                console.error('JSON parse error:', jsonError);
+                showToast("Server returned invalid response", "error");
+                return;
+            }
+
+            if (res.ok) {
+                showToast("Token revoked. Agent is now disconnected.", "success");
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                const errorMsg = data.error || data.message || data.detail || JSON.stringify(data);
+                showToast("Error: " + errorMsg, "error");
+            }
+        } catch (e) {
+            console.error('Network error:', e);
+            showToast("Network error: " + e.message, "error");
+        }
+    }
+</script>
+{% endblock %}

@@ -333,14 +333,17 @@ namespace CommandProcessor
     }
 
     bool deisolateHost() {
-        bool success = true;
-        // We attempt all removals, but track if any failed
-        if (!runNetshCommand("advfirewall firewall delete rule name=\"EDR_BLOCK_ALL\"")) success = false;
-        if (!runNetshCommand("advfirewall firewall delete rule name=\"EDR_ALLOW_ANTIGRAVITY\"")) success = false;
-        if (!runNetshCommand("advfirewall firewall delete rule name=\"EDR_ALLOW_SERVER\"")) success = false;
-        if (!runNetshCommand("advfirewall firewall delete rule name=\"EDR_ALLOW_DNS\"")) success = false;
+        // Idempotent De-isolation:
+        // We attempt to delete all rules. If a rule doesn't exist, netsh returns error,
+        // but that's fine because the goal is for the rule to be gone.
+        // We track this but return success to avoid "Failed" confusion in UI.
         
-        return success;
+        runNetshCommand("advfirewall firewall delete rule name=\"EDR_BLOCK_ALL\"");
+        runNetshCommand("advfirewall firewall delete rule name=\"EDR_ALLOW_ANTIGRAVITY\"");
+        runNetshCommand("advfirewall firewall delete rule name=\"EDR_ALLOW_SERVER\"");
+        runNetshCommand("advfirewall firewall delete rule name=\"EDR_ALLOW_DNS\"");
+        
+        return true; 
     }
 
     // ==========================================

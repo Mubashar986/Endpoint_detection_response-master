@@ -63,6 +63,7 @@ public:
      * @return true if enabled
      */
     static bool isModuleEnabled(const std::string& moduleName);
+    static bool isEventEnabled(int eventId);
 
     /**
      * @brief Get the currently loaded configuration version.
@@ -106,6 +107,12 @@ private:
      * @brief Restore previous configuration from backup.
      */
     static void rollback();
+
+    /**
+     * @brief Reload Sysmon with the new configuration file.
+     * @param configPath Path to the generated Sysmon XML.
+     */
+    static void reloadSysmon(const std::string& configPath);
     
     // Helper to get nested value safely
     template<typename T>

@@ -79,6 +79,7 @@ set(AGENT_SOURCES
     Updater.cpp
     EnrollmentClient.cpp  # NEW: Agent registration with server
     ConfigManager.cpp     # NEW: Agent configuration management
+    SysmonConfigGenerator.cpp # NEW: Dynamic Sysmon XML generation
     EventSpillover.cpp
 )
 

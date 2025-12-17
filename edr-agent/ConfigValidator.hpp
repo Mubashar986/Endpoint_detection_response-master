@@ -45,10 +45,10 @@ private:
     // ========================================
     static VoidResult validateRequiredFields(const nlohmann::json& config) {
         const std::vector<std::string> required = {
-            "config_version",
             "http_server",
-            "http_port",
-            "api_path"
+            "http_port"
+            // "api_path" removed - it has a default fallback in ConfigReader::getApiPath()
+            // "config_version" removed - it is optional in bootstrap config
             // "auth_token" removed - now stored in auth.secret only
         };
         
@@ -60,12 +60,18 @@ private:
             }
         }
         
-        // config_version must be >= 1
-        int version = config.value("config_version", 0);
-        if (version < 1) {
-            LOG_ERROR("config_version must be >= 1, got: " + std::to_string(version));
-            return VoidResult::failure(AgentError::ConfigInvalidValue,
-                "config_version must be >= 1");
+        // Optional validation for config_version if present
+        if (config.contains("config_version")) {
+            int version = config.value("config_version", 0);
+            if (version < 1) {
+                LOG_WARN("config_version is present but < 1: " + std::to_string(version));
+            }
+        } else if (config.contains("_config_version")) {
+            // Check for the server-sent version key
+            int version = config.value("_config_version", 0);
+            if (version < 1) {
+                LOG_WARN("_config_version is present but < 1: " + std::to_string(version));
+            }
         }
         
         return VoidResult::success();
@@ -91,13 +97,16 @@ private:
                 "http_port must be between 1 and 65535");
         }
         
-        // api_path: starts with "/"
+        // api_path: starts with "/" (but allow fallback to default in ConfigReader)
         std::string apiPath = config.value("api_path", "");
-        if (apiPath.empty() || apiPath[0] != '/') {
+        if (!apiPath.empty() && apiPath[0] != '/') {
             LOG_ERROR("api_path must start with '/', got: " + apiPath);
             return VoidResult::failure(AgentError::ConfigInvalidValue,
                 "api_path must start with '/'");
         }
+        
+        // NOTE: If api_path is empty, ConfigReader::getApiPath() provides the default: "/api/v1/telemetry/"
+        // This allows server-sent configs to omit api_path without causing validation failures
         
         // auth_token: REMOVED check here. 
         // Logic moved to ConfigReader::getAuthToken() which checks auth.secret
@@ -136,6 +145,7 @@ private:
         for (const auto& src : sources) {
             if (!src.contains("path") || !src["path"].is_string()) {
                 LOG_ERROR("source[" + std::to_string(index) + "].path missing or not string");
+                LOG_ERROR("DUMP: " + src.dump());
                 return VoidResult::failure(AgentError::ConfigMissingField,
                     "source[" + std::to_string(index) + "].path required");
             }

@@ -437,6 +437,16 @@ DWORD ProcessEvent(EVT_HANDLE hEvent) {
                 // Parse Sysmon JSON
                 nlohmann::json sysmonEvent = nlohmann::json::parse(eventJson);
                 
+                // Agent-Side Filtering: Check if this event type is enabled
+                if (sysmonEvent.contains("info") && sysmonEvent["info"].contains("System") && sysmonEvent["info"]["System"].contains("EventID")) {
+                    int eventId = sysmonEvent["info"]["System"]["EventID"].get<int>();
+                    if (!ConfigManager::isEventEnabled(eventId)) {
+                        // eventJson is just a string at this point, but we parsed it to check ID
+                        // Drop it silently
+                        goto cleanup;
+                    }
+                }
+                
                 // Convert to Django format
                 nlohmann::json djangoEvent = EventConverter::sysmonEventToDjangoFormat(sysmonEvent);
                 

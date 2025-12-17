@@ -46,6 +46,9 @@ private:
     nlohmann::json jsonObject;
     static nlohmann::json parseJsonFile(
         const std::filesystem::path& configFilePath);
+
+    // Helper to merge policy into base config
+    static void mergeJson(nlohmann::json& target, const nlohmann::json& source);
 };
 
 #endif // CONFIGREADER_HPP

@@ -27,7 +27,7 @@ from rest_framework.authentication import TokenAuthentication, SessionAuthentica
 
 from .models import TelemetryEvent
 from .detection_models import DetectionRule, Alert
-from .models_mongo import ResponseAction, Agent  # Agent tracking
+from .models_mongo import ResponseAction, Agent, AgentConfig  # Agent tracking
 from .rbac_decorators import require_analyst_or_admin, can_toggle_rules, get_user_role, can_take_response_actions
 from .ratelimit_utils import ratelimit_with_logging
 from django.conf import settings
@@ -668,3 +668,29 @@ def agents_api(request):
         })
     
     return JsonResponse({'count': len(agents_data), 'agents': agents_data})
+
+
+@login_required
+def agent_config_view(request, agent_id):
+    """View to render the agent configuration and health page."""
+    try:
+        agent = Agent.objects.get(agent_id=agent_id)
+    except Agent.DoesNotExist:
+        return render(request, 'dashboard/404.html', {'message': 'Agent not found'}, status=404)
+        
+    # Get all available configs for the dropdown
+    configs = AgentConfig.objects.all().order_by('-created_at')
+    
+    # Calculate initial health status for display
+    # (Real-time data will be fetched by JS via API, but good to have server-side baseline)
+    cpu_status = "success"
+    if agent.cpu_percent > 80: cpu_status = "danger"
+    elif agent.cpu_percent > 50: cpu_status = "warning"
+    
+    context = {
+        'agent': agent,
+        'configs': configs,
+        'cpu_status': cpu_status,
+        'token_snippet': agent.identity_token[:10] + "..." if agent.identity_token else "N/A"
+    }
+    return render(request, 'dashboard/agent_config.html', context)
