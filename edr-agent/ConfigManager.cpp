@@ -133,63 +133,97 @@ int ConfigManager::getCurrentVersion() {
 // ----------------------------------------------------------------------------
 
 bool ConfigManager::downloadAndApply() {
-    LOG_INFO("Downloading new configuration...");
+    LOG_INFO("[DEBUG] ===== downloadAndApply() STARTED =====");
+    LOG_INFO("[DEBUG] Current s_currentVersion: " + std::to_string(s_currentVersion));
+    LOG_INFO("[DEBUG] Config path: " + s_configPath);
     
     // Read server config to construct full URL
-    // Use s_configPath which is now absolute
     ConfigReader reader(s_configPath);
     std::string server = reader.getHttpServer();
     int port = reader.getHttpPort();
     std::string authToken = reader.getAuthToken();
     
-    // Construct full URL for GET request
     std::string fullUrl = "http://" + server + ":" + std::to_string(port) + "/api/v1/config/";
-    LOG_INFO("Config URL: " + fullUrl);
+    LOG_INFO("[DEBUG] Requesting config from: " + fullUrl);
     
-    // Create temporary HttpClient with auth token
     HttpClient client;
     client.addHeader("Authorization", "AgentToken " + authToken);
     client.addHeader("Content-Type", "application/json");
     
-    // HttpClient::GET returns the response body as a string
     std::string responseBody = client.GET(fullUrl);
     
     if (responseBody.empty()) {
-        LOG_ERROR("Config download failed: Empty response");
+        LOG_ERROR("[DEBUG] Config download FAILED: Empty response from server");
         return false;
     }
+    
+    LOG_INFO("[DEBUG] Received response: " + responseBody.substr(0, 200) + "...");
 
     try {
         nlohmann::json newConfig = nlohmann::json::parse(responseBody);
         
-        // Extract config object if wrapped
         if (newConfig.contains("config")) {
             newConfig = newConfig["config"];
+            LOG_INFO("[DEBUG] Extracted 'config' object from response");
+        }
+        
+        LOG_INFO("[DEBUG] New config keys: " + std::to_string(newConfig.size()));
+        if (newConfig.contains("_config_version")) {
+            LOG_INFO("[DEBUG] New _config_version: " + std::to_string(newConfig["_config_version"].get<int>()));
         }
 
         if (!validateConfig(newConfig)) {
-            LOG_ERROR("Config validation failed. Aborting update.");
+            LOG_ERROR("[DEBUG] Config VALIDATION FAILED. Aborting.");
             return false;
         }
+        LOG_INFO("[DEBUG] Config validation PASSED");
 
+        LOG_INFO("[DEBUG] Calling saveConfig()...");
         if (saveConfig(newConfig)) {
-            // RELOAD Strategy:
-            // Instead of just assigning newConfig, we verify the full merged state
-            // by reloading via ConfigManager logic (simulating a restart state).
-            ConfigReader reader(s_configPath); // This now triggers merge logic
-            s_config = reader.getJson();       // This contains Bootstrap + Policy
-
-            s_currentVersion = getJsonValue<int>(s_config, "_config_version", 0);
+            LOG_INFO("[DEBUG] saveConfig() returned TRUE");
+            
+            // Verify the file was actually written
+            std::filesystem::path policyPath = std::filesystem::path(s_configPath).parent_path() / "agent_policy.json";
+            if (std::filesystem::exists(policyPath)) {
+                auto fileSize = std::filesystem::file_size(policyPath);
+                LOG_INFO("[DEBUG] agent_policy.json exists, size: " + std::to_string(fileSize) + " bytes");
+                
+                // Read first 100 chars to verify content
+                std::ifstream verifyFile(policyPath);
+                std::string firstChars;
+                std::getline(verifyFile, firstChars);
+                LOG_INFO("[DEBUG] agent_policy.json first line: " + firstChars.substr(0, 100));
+            } else {
+                LOG_ERROR("[DEBUG] agent_policy.json DOES NOT EXIST after saveConfig!");
+            }
+            
+            LOG_INFO("[DEBUG] Reloading config via ConfigReader...");
+            ConfigReader reloadReader(s_configPath);
+            s_config = reloadReader.getJson();
+            
+            // FIX: Server sends "config_version", agent was looking for "_config_version"
+            // Check for both keys for compatibility
+            if (s_config.contains("config_version")) {
+                s_currentVersion = s_config["config_version"].get<int>();
+            } else if (s_config.contains("_config_version")) {
+                s_currentVersion = s_config["_config_version"].get<int>();
+            } else {
+                s_currentVersion = 0;  // Default if neither found
+            }
+            LOG_INFO("[DEBUG] Reloaded config version: " + std::to_string(s_currentVersion));
+            
+            LOG_INFO("[DEBUG] Calling applyChanges()...");
             applyChanges(s_config);
-            LOG_INFO("Configuration updated successfully to version " + std::to_string(s_currentVersion));
+            
+            LOG_INFO("[DEBUG] ===== downloadAndApply() SUCCESS =====");
             return true;
         } else {
-            LOG_ERROR("Failed to save config to disk");
+            LOG_ERROR("[DEBUG] saveConfig() returned FALSE");
             return false;
         }
 
     } catch (const std::exception& e) {
-        LOG_ERROR("Exception processing config update: " + std::string(e.what()));
+        LOG_ERROR("[DEBUG] EXCEPTION in downloadAndApply: " + std::string(e.what()));
         return false;
     }
 }
@@ -226,36 +260,114 @@ bool ConfigManager::validateConfig(const nlohmann::json& config) {
 }
 
 bool ConfigManager::saveConfig(const nlohmann::json& newConfig) {
+    LOG_INFO("[DEBUG] ===== saveConfig() STARTED =====");
+    
     try {
         std::filesystem::path configPath(s_configPath);
         std::filesystem::path policyPath = configPath.parent_path() / "agent_policy.json";
         std::filesystem::path policyBak = configPath.parent_path() / "agent_policy.json.bak";
+        std::string tmpPath = policyPath.string() + ".tmp";
+        
+        LOG_INFO("[DEBUG] Policy path: " + policyPath.string());
+        LOG_INFO("[DEBUG] Backup path: " + policyBak.string());
+        LOG_INFO("[DEBUG] Temp path: " + tmpPath);
+        
+        // Check current state
+        LOG_INFO("[DEBUG] agent_policy.json exists: " + std::string(std::filesystem::exists(policyPath) ? "YES" : "NO"));
+        LOG_INFO("[DEBUG] agent_policy.json.bak exists: " + std::string(std::filesystem::exists(policyBak) ? "YES" : "NO"));
 
         // 1. Backup existing policy if it exists
         if (std::filesystem::exists(policyPath)) {
-            std::filesystem::copy(policyPath, policyBak, std::filesystem::copy_options::overwrite_existing);
+            LOG_INFO("[DEBUG] Step 1: Backing up existing policy...");
+            try {
+                std::filesystem::copy(policyPath, policyBak, std::filesystem::copy_options::overwrite_existing);
+                LOG_INFO("[DEBUG] Step 1: Backup created successfully");
+            } catch (const std::exception& backupErr) {
+                LOG_ERROR("[DEBUG] Step 1 FAILED: Backup failed: " + std::string(backupErr.what()));
+                // Continue anyway - backup failure shouldn't block update
+            }
+        } else {
+            LOG_INFO("[DEBUG] Step 1: No existing policy to backup (first sync)");
         }
 
         // 2. Write new policy to .tmp
-        std::string tmpPath = policyPath.string() + ".tmp";
+        LOG_INFO("[DEBUG] Step 2: Writing new config to .tmp file...");
         std::ofstream outFile(tmpPath);
-        if (!outFile.is_open()) return false;
+        if (!outFile.is_open()) {
+            DWORD err = GetLastError();
+            LOG_ERROR("[DEBUG] Step 2 FAILED: Cannot open .tmp file for writing. Error: " + std::to_string(err));
+            return false;
+        }
         
-        // We write the received config directly as the policy
-        outFile << newConfig.dump(4);
+        std::string configStr = newConfig.dump(4);
+        outFile << configStr;
+        outFile.flush();
+        
+        if (outFile.fail()) {
+            LOG_ERROR("[DEBUG] Step 2 FAILED: Write to .tmp file failed");
+            outFile.close();
+            return false;
+        }
         outFile.close();
-
-        // 3. Atomic move
-        if (MoveFileExA(tmpPath.c_str(), policyPath.string().c_str(), MOVEFILE_REPLACE_EXISTING) == 0) {
-            LOG_ERROR("Failed to rename temporary policy file. Error: " + std::to_string(GetLastError()));
+        
+        // Verify .tmp was written
+        if (std::filesystem::exists(tmpPath)) {
+            auto tmpSize = std::filesystem::file_size(tmpPath);
+            LOG_INFO("[DEBUG] Step 2: .tmp file created, size: " + std::to_string(tmpSize) + " bytes");
+        } else {
+            LOG_ERROR("[DEBUG] Step 2 FAILED: .tmp file does not exist after write!");
             return false;
         }
 
-        LOG_INFO("Successfully saved new policy to: " + policyPath.string());
+        // 3. Atomic move
+        LOG_INFO("[DEBUG] Step 3: Atomic move .tmp -> agent_policy.json...");
+        
+        // First, delete target if exists (MoveFileEx sometimes fails on Windows Service)
+        if (std::filesystem::exists(policyPath)) {
+            LOG_INFO("[DEBUG] Step 3a: Deleting existing target file for clean rename...");
+            if (!DeleteFileA(policyPath.string().c_str())) {
+                DWORD delErr = GetLastError();
+                LOG_WARN("[DEBUG] Step 3a: DeleteFile failed (might be OK): Error " + std::to_string(delErr));
+                // Try to proceed anyway - MoveFileEx might still work
+            }
+        }
+        
+        if (MoveFileExA(tmpPath.c_str(), policyPath.string().c_str(), MOVEFILE_REPLACE_EXISTING) == 0) {
+            DWORD moveErr = GetLastError();
+            LOG_ERROR("[DEBUG] Step 3 FAILED: MoveFileExA error: " + std::to_string(moveErr));
+            
+            // Decode common error codes
+            if (moveErr == 5) LOG_ERROR("[DEBUG] Error 5 = ACCESS_DENIED (file locked or permissions)");
+            if (moveErr == 32) LOG_ERROR("[DEBUG] Error 32 = SHARING_VIOLATION (file in use by another process)");
+            if (moveErr == 183) LOG_ERROR("[DEBUG] Error 183 = ALREADY_EXISTS (shouldn't happen with REPLACE flag)");
+            
+            // FALLBACK: Try std::filesystem::rename
+            LOG_INFO("[DEBUG] Trying fallback: std::filesystem::rename...");
+            try {
+                std::filesystem::rename(tmpPath, policyPath);
+                LOG_INFO("[DEBUG] Fallback rename SUCCEEDED!");
+            } catch (const std::exception& renameErr) {
+                LOG_ERROR("[DEBUG] Fallback rename FAILED: " + std::string(renameErr.what()));
+                return false;
+            }
+        } else {
+            LOG_INFO("[DEBUG] Step 3: MoveFileExA SUCCEEDED");
+        }
+        
+        // Final verification
+        if (std::filesystem::exists(policyPath)) {
+            auto finalSize = std::filesystem::file_size(policyPath);
+            LOG_INFO("[DEBUG] FINAL: agent_policy.json exists, size: " + std::to_string(finalSize) + " bytes");
+        } else {
+            LOG_ERROR("[DEBUG] FINAL: agent_policy.json STILL MISSING after all attempts!");
+            return false;
+        }
+
+        LOG_INFO("[DEBUG] ===== saveConfig() SUCCESS =====");
         return true;
 
     } catch (const std::exception& e) {
-        LOG_ERROR("Exception saving policy: " + std::string(e.what()));
+        LOG_ERROR("[DEBUG] EXCEPTION in saveConfig: " + std::string(e.what()));
         rollback();
         return false;
     }
